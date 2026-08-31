@@ -16270,35 +16270,46 @@
             return Math.round(sum * QUEST_XP_FRACTION);
         }
         // ── Quest Grit payout (rate card §4 "Quest completion") ───────────
-        // required completions × 3 × breadth factor, clamped to [15, 120].
+        // An effort score — every required completion, plus a heavy weight for
+        // each DISTINCT activity — run through a power curve between a floor
+        // and a cap:
         //
-        // The rate card writes the third term as a "duration factor" but never
-        // defines it, and duration is the wrong axis: one activity dragged
+        //   effort = completions × 1 + distinct × 3
+        //   frac   = min(1, effort ÷ effort(40, 10))     // 70, the anchor
+        //   grit   = round(5 + (120 − 5) × frac ^ 1.7)
+        //
+        // The old shape was `completions × 3 × a stepped breadth factor`,
+        // clamped to [15, 120], and it reached the ceiling far too early: 27
+        // completions across 6 activities — about a week of solid work — paid
+        // the same 120 as a quest three months long, so every unit of effort
+        // past that point was worth nothing. The curve fixes both ends. The
+        // 1.7 power holds ordinary quests down near the floor, and only
+        // something at the anchor's scale — the largest realistic quest —
+        // gets near the cap, so a week and a quarter no longer pay alike.
+        //
+        // Duration is still not an input, deliberately: one activity dragged
         // across three months must not out-earn ten activities finished in ten
-        // days. Breadth — how many DISTINCT activities the quest is built from
-        // — is what a decomposition is actually worth, and it reads nothing
-        // date-shaped, so a slow quest and a fast one of the same shape pay
-        // identically.
+        // days. Breadth is what a decomposition is actually worth, and nothing
+        // here reads anything date-shaped, so a slow quest and a fast one of
+        // the same shape pay identically.
         //
         // Task leaves contribute nothing, here and in questPotentialBonus:
         // they are self-attested checkboxes with no verification, and an AI
         // composer that can emit twenty of them would be a Grit printing
         // press. Grit follows XP.
-        //
-        // The clamp mirrors the rate card's mastery row (floor 40, ceiling
-        // 120): a trivial quest is not worth farming, and the largest quest
-        // cannot out-earn a week of real activity work (~117 for a consistent
-        // user, rate card §3).
-        var GRIT_QUEST_PER_COMPLETION = 3;
-        var GRIT_QUEST_FLOOR = 15;
-        var GRIT_QUEST_CAP   = 120;
-        var GRIT_QUEST_BREADTH = [[10, 2], [6, 1.5], [3, 1.25], [0, 1]];  // [minDistinct, factor], descending
-        function questGritBreadth(distinct) {
-            for (var i = 0; i < GRIT_QUEST_BREADTH.length; i++) {
-                if (distinct >= GRIT_QUEST_BREADTH[i][0]) return GRIT_QUEST_BREADTH[i][1];
-            }
-            return 1;
+        var GRIT_QUEST_FLOOR                  = 5;    // a trivial quest still pays something
+        var GRIT_QUEST_CAP                    = 120;  // and cannot out-earn a week of activity work
+        var GRIT_QUEST_POWER                  = 1.7;  // curve shape: floor-heavy, cap-shy
+        var GRIT_QUEST_COMPLETION_WEIGHT      = 1.0;  // score per required completion
+        var GRIT_QUEST_DISTINCT_WEIGHT        = 3.0;  // score per distinct linked activity
+        var GRIT_QUEST_MAX_COMPLETIONS_ANCHOR = 40;   // the reference "largest realistic
+        var GRIT_QUEST_MAX_DISTINCT_ANCHOR    = 10;   // quest" — the shape that earns the cap
+        function questEffortScore(completions, distinct) {
+            return completions * GRIT_QUEST_COMPLETION_WEIGHT +
+                   distinct    * GRIT_QUEST_DISTINCT_WEIGHT;
         }
+        var GRIT_QUEST_MAX_SCORE = questEffortScore(GRIT_QUEST_MAX_COMPLETIONS_ANCHOR,
+                                                    GRIT_QUEST_MAX_DISTINCT_ANCHOR);   // 70
         // Mirrors questPotentialBonus's walk exactly, including the actMeta
         // check — a leaf pointing at a deleted activity pays neither XP nor
         // Grit, and must not count toward breadth either.
@@ -16312,8 +16323,9 @@
                 ids[n.linkedActivityId] = true;
             })({ kind: 'group', repeat: 1, children: p.groups || [] }, 1);
             if (completions <= 0) return 0;
-            var raw = completions * GRIT_QUEST_PER_COMPLETION * questGritBreadth(Object.keys(ids).length);
-            return Math.min(GRIT_QUEST_CAP, Math.max(GRIT_QUEST_FLOOR, Math.round(raw)));
+            var frac = Math.min(1, questEffortScore(completions, Object.keys(ids).length) / GRIT_QUEST_MAX_SCORE);
+            return Math.round(GRIT_QUEST_FLOOR +
+                              (GRIT_QUEST_CAP - GRIT_QUEST_FLOOR) * Math.pow(frac, GRIT_QUEST_POWER));
         }
         // ── Bonus idempotency marker (spec §4) ────────────────────────────
         // Replaces the deleted refund path. The risk that path pretended to
@@ -16663,7 +16675,22 @@
             window._prPopBound = true;
             window.addEventListener('popstate', function() {
                 var dv = document.getElementById('projectsDetailView');
-                if (dv && dv.style.display !== 'none' && window._openProjectId) window.closeProjectDetail(true);
+                if (!dv || dv.style.display === 'none' || !window._openProjectId) return;
+                // Anything opened ON TOP of the detail — Edit, the activity
+                // picker, a group sheet — carries no history entry of its own;
+                // the app-wide back guard is what closes those. But this
+                // handler runs before the guard's, and closing the quest out
+                // from under an open modal left that modal floating over the
+                // list it came from, so the next two back presses were spent
+                // undoing a state the user never asked for. The overlay goes
+                // first instead, and the detail's own entry goes straight back
+                // on the stack: the quest stays open, and the NEXT back is the
+                // one that closes it.
+                if (window.mkCloseTopOverlay && window.mkCloseTopOverlay()) {
+                    try { history.pushState({ questDetail: window._openProjectId }, ''); } catch (e) {}
+                    return;
+                }
+                window.closeProjectDetail(true);
             });
         }
 
@@ -17490,7 +17517,9 @@
             host.innerHTML = list.map(function(a) {
                 var isIn = already[a.id];
                 var sel = _prPickerSelection[a.id];
-                return '<div class="pr-pick-row' + (sel ? ' sel' : '') + (isIn ? ' added' : '') + '" ' + (isIn ? '' : 'onclick="toggleProjectPick(\'' + prAttr(a.id) + '\')"') + '>' +
+                return '<div class="pr-pick-row' + (sel ? ' sel' : '') + (isIn ? ' added' : '') + '" ' +
+                    (isIn ? 'aria-disabled="true"' : 'role="checkbox" aria-checked="' + (sel ? 'true' : 'false') + '" ' +
+                            'onclick="toggleProjectPick(\'' + prAttr(a.id) + '\')"') + '>' +
                     '<span class="pr-pick-check">' + (isIn ? phIcon('check') : (sel ? prCheckSvg() : '')) + '</span>' +
                     '<span class="pr-pick-dot" style="background:' + (a.dimHex || '#8a9099') + '"></span>' +
                     '<span class="pr-pick-main"><span class="pr-pick-name">' + escapeHtml(a.name) + '</span>' +
@@ -17500,7 +17529,17 @@
             _prUpdatePickerAddBtn();
         };
         window.toggleProjectPick = function(id) { if (_prPickerSelection[id]) delete _prPickerSelection[id]; else _prPickerSelection[id] = true; renderProjectActivityPickerList(document.getElementById('projectActivitySearch').value); };
-        function _prUpdatePickerAddBtn() { var n = Object.keys(_prPickerSelection).length; var btn = document.getElementById('projectActivityPickerAdd'); if (btn) { btn.textContent = n ? 'Add ' + n : 'Add'; btn.disabled = !n; } }
+        // The Add button counts what is picked; the hint above the list says the
+        // picker takes more than one until it can say how many are on. Between
+        // them a user who taps one row and reaches straight for Add has been
+        // told, twice, that they did not have to.
+        function _prUpdatePickerAddBtn() {
+            var n = Object.keys(_prPickerSelection).length;
+            var btn = document.getElementById('projectActivityPickerAdd');
+            if (btn) { btn.textContent = n ? 'Add ' + n : 'Add'; btn.disabled = !n; }
+            var count = document.getElementById('projectActivityPickerCount');
+            if (count) count.textContent = n ? n + ' selected' : '';
+        }
         window.confirmProjectActivityPicker = function() {
             if (!_prPickerTargetGid) return closeProjectActivityPicker();
             var zone = document.querySelector('.pr-b-group[data-group="' + _prPickerTargetGid + '"] > .pr-b-zone');
@@ -18278,6 +18317,11 @@
                 }
                 return false;
             }
+            // Exported for the one other popstate handler that runs before
+            // this one: the quest detail's. It has to be able to ask "was
+            // there something on top of me?" and get the same answer, closed
+            // the same way, rather than keeping a second list of overlays.
+            window.mkCloseTopOverlay = closeTopOverlay;
 
             // Any interaction re-arms the guard, so there is always exactly
             // one buffer entry between the user and leaving the app.
@@ -23962,7 +24006,11 @@
 
         const BERSERK_MIN_HOURS   = 1;
         const BERSERK_MAX_HOURS   = 5;
-        const BERSERK_SWING       = 0.30;  // ±30% on the session's XP
+        // The swing scales with the window the user commits to: 10% per hour,
+        // so the 1-hour dash is ±10% and the full 5-hour run is ±50%. It was a
+        // flat ±30% at every length, which made the shortest window the only
+        // rational pick — the same payout for a fifth of the exposure.
+        const BERSERK_SWING_PER_H = 0.10;  // of the session's XP, per hour chosen
         const BERSERK_DAMPENER    = 0.22;  // fraction of the above-baseline part that counts
         const BERSERK_FLOOR_PER_H = 40;    // so a brand-new account still gets a real target
 
@@ -23983,7 +24031,7 @@
         const STAKE_MIN_DAYS      = 5;
         const STAKE_MIN_TOTAL     = 5;     // combined completions across all picks
 
-        const FOCUS_MULTIPLIER    = 0.10;  // deliberately well under Berserk's 30%
+        const FOCUS_MULTIPLIER    = 0.10;  // deliberately well under a long Berserk's swing
         const FOCUS_MIN_DAYS      = 3;
         const FOCUS_MAX_DAYS      = 90;
 
@@ -24020,7 +24068,7 @@
             habit:     { name: 'Habit Mode',    icon: 'plant', tag: 'Build',
                          blurb: 'Up to three activities, a daily window each. Counts days achieved.' },
             berserk:   { name: 'Berserk Mode',  icon: 'fire', tag: 'Extreme',
-                         blurb: 'An XP target inside a 1–5 hour window. Clear it for +30%, miss it for −30%.' },
+                         blurb: 'An XP target inside a 1–5 hour window. The longer the window, the bigger the swing.' },
             recovery:  { name: 'Recovery Mode', icon: 'bandaids', tag: 'Return',
                          blurb: 'Up to three streaks climb twice as fast, until each is back at its own peak.' },
             insurance: { name: 'Insurance Mode',icon: 'shield', tag: 'Shield',
@@ -24584,6 +24632,27 @@
             return Math.max(1, Math.round(berserkPerHourTarget() * hours));
         }
 
+        // The swing a given window is worth, as a fraction — symmetric, so the
+        // same number is the bonus on a clear and the penalty on a miss. The
+        // hours are clamped to the slider's own range so a session stored
+        // outside it can never pay more than the longest window is worth.
+        function berserkSwingFor(hours) {
+            var h = Number(hours) || BERSERK_MIN_HOURS;
+            h = Math.max(BERSERK_MIN_HOURS, Math.min(BERSERK_MAX_HOURS, h));
+            return h * BERSERK_SWING_PER_H;
+        }
+        // The same number as a whole percentage, for anything user-facing.
+        function berserkSwingPct(hours) { return Math.round(berserkSwingFor(hours) * 100); }
+        // The setup sheet's opening line. It is built in one place because the
+        // sheet writes it once at render and modeSyncLive rewrites it on every
+        // slider step — two copies of this sentence would drift apart.
+        function berserkLedeText(hours) {
+            var pct = berserkSwingPct(hours);
+            return 'Hit the target inside the window for +' + pct + '% XP. Miss and ' + pct +
+                   '% comes off. Every extra hour you commit is another ' +
+                   Math.round(BERSERK_SWING_PER_H * 100) + ' points either way.';
+        }
+
         function modeBerserkExpired(a) {
             return !!(a && a.kind === 'berserk' && modesNow() >= a.endsAt);
         }
@@ -24608,12 +24677,15 @@
             if (!won && !expired && !force) return false;
 
             a.resolved = true;
-            var delta = won ? Math.round(earned * BERSERK_SWING)
-                            : -Math.round(earned * BERSERK_SWING);
+            // The session's own window sets the rate — a 5-hour run swings
+            // five times what a 1-hour dash does, either way.
+            var swing = berserkSwingFor(a.hours);
+            var delta = won ? Math.round(earned * swing)
+                            : -Math.round(earned * swing);
             // A failure with nothing logged still has to sting, or the mode is
             // free to enter and free to abandon. Charge the swing against what
             // the target was worth instead of against zero.
-            if (!won && earned <= 0) delta = -Math.round(a.targetXP * BERSERK_SWING);
+            if (!won && earned <= 0) delta = -Math.round(a.targetXP * swing);
             modesAwardXP(delta, null);
 
             var res = {
@@ -24627,7 +24699,8 @@
                 ],
                 note: won
                     ? 'You beat your own trailing average with hours to spare. The bonus is already in your total.'
-                    : 'The window closed short of the target. Thirty percent is the price you agreed to — it has been taken.'
+                    : 'The window closed short of the target. ' + berserkSwingPct(a.hours) +
+                      ' percent is the price you agreed to for that window — it has been taken.'
             };
             await modesEnd(won ? 'completed' : 'failed',
                            (won ? 'Cleared ' : 'Missed ') + a.targetXP + ' XP in ' + a.hours + 'h',
@@ -26272,7 +26345,8 @@
                    '<div class="md-hrow-meta">' +
                      '<span class="md-chip md-chip-hot" data-md-clock="berserk">' + modeCountdownLabel(a.endsAt) + '</span>' +
                      '<span class="md-chip">' + a.hours + '-hour window</span>' +
-                     '<span class="md-chip">Win +30% · Miss −30%</span>' +
+                     '<span class="md-chip">Win +' + berserkSwingPct(a.hours) +
+                       '% · Miss −' + berserkSwingPct(a.hours) + '%</span>' +
                    '</div>' +
                    '<p class="md-note">Log anywhere in the app — the target fills either way.</p>';
         }
@@ -26484,7 +26558,8 @@
                 msg = 'Break the pact now? Your ' + PACT_WAGER + ' Grit is gone, and so is ' +
                       a.partnerName + '’s. They will be told you ended it.';
             } else if (a.kind === 'berserk') {
-                msg = 'End Berserk Mode now? Ending early counts as a miss — the 30% XP penalty applies.';
+                msg = 'End Berserk Mode now? Ending early counts as a miss — the ' +
+                      berserkSwingPct(a.hours) + '% XP penalty applies.';
             } else if (a.kind === 'habit') {
                 msg = 'Turn Habit Mode off? Your day count pauses right here. Turn it back on within ' +
                       HABIT_RESUME_DAYS + ' days and you carry on from where you left off; after that it starts fresh.';
@@ -27022,7 +27097,9 @@
             if (s.kind === 'berserk') {
                 var t = berserkTargetFor(s.hours);
                 out.berserkTarget = t.toLocaleString() + ' XP';
-                out.berserkWin    = '+' + Math.round(t * BERSERK_SWING).toLocaleString() + ' XP';
+                out.berserkWin    = '+' + Math.round(t * berserkSwingFor(s.hours)).toLocaleString() + ' XP';
+                out.berserkLose   = '−' + berserkSwingPct(s.hours) + '% of what you earned';
+                out.berserkLede   = berserkLedeText(s.hours);
                 out.berserkEnds   = 'until ' + modeHourLabel(s.hours);
             }
             if (s.kind === 'stake') {
@@ -27284,11 +27361,12 @@
             var s = _modeSetup;
             var cost = MODE_COST.berserk;
             var target = berserkTargetFor(s.hours);
-            var swing = Math.round(target * BERSERK_SWING);
+            var swing = Math.round(target * berserkSwingFor(s.hours));
+            var pct = berserkSwingPct(s.hours);
 
             var html = modeSheetHead('Berserk Mode', 'Extreme');
             html += '<div class="modal-body md-body md-body-hot">' +
-                      '<p class="md-lede">Hit the target inside the window for +30% XP. Miss and 30% comes off.</p>' +
+                      '<p class="md-lede" data-md-live="berserkLede">' + modeEsc(berserkLedeText(s.hours)) + '</p>' +
                       modeSliderHtml('hours', BERSERK_MIN_HOURS, BERSERK_MAX_HOURS, s.hours, {
                           unit: 'hours', side: 'berserkEnds', hot: true, label: 'Hours',
                           loLabel: BERSERK_MIN_HOURS + ' hour', hiLabel: BERSERK_MAX_HOURS + ' hours' }) +
@@ -27298,7 +27376,8 @@
                         '<div class="md-stake md-stake-win"><span class="md-stake-k">Clear it</span>' +
                           '<span class="md-stake-v" data-md-live="berserkWin">+' + swing.toLocaleString() + ' XP</span></div>' +
                         '<div class="md-stake md-stake-lose"><span class="md-stake-k">Miss it</span>' +
-                          '<span class="md-stake-v">−30% of what you earned</span></div>' +
+                          '<span class="md-stake-v" data-md-live="berserkLose">−' + pct +
+                            '% of what you earned</span></div>' +
                       '</div>' +
                       '<p class="md-hint md-hint-hot">The whole app turns red. It keeps running with the app closed.</p>' +
                     '</div>' +

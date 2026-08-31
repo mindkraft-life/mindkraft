@@ -1976,6 +1976,10 @@
             <div class="modal-body pl-modal-body">
                 <p class="pr-cad-hint" style="margin:0 0 10px;">Completing a linked activity here logs XP and streaks exactly as on the main screen — nothing is duplicated. This quest's bonus XP pays out in one lump sum when the whole quest is complete.</p>
                 <input type="text" id="projectActivitySearch" class="pl-input" placeholder="Search activities…" oninput="renderProjectActivityPickerList(this.value)">
+                <div class="pr-picker-hint">
+                    <span>Tap to select — as many as you like</span>
+                    <span class="pr-picker-hint-n" id="projectActivityPickerCount"></span>
+                </div>
                 <div id="projectActivityPickerList" class="pr-picker-list"></div>
                 <div id="projectActivityPickerEmpty" class="pr-picker-empty" style="display:none;">No activities found. Create activities first, or add a plain task instead.</div>
             </div>
@@ -3250,7 +3254,13 @@
 
         function commit(t, s, dir) {
             var entry = NAV[t].subs[s];
-            var el = activateEntry(entry);
+            /* activateEntry() drives the app through switchTab/switchSubTab,
+               which now report back here. This IS that report — reconciling
+               against a state we are halfway through setting would only fight
+               it, so it stands down for the duration. */
+            var el;
+            reconciling = true;
+            try { el = activateEntry(entry); } finally { reconciling = false; }
             if (!el) return false; // no panel behind this entry — leave the nav where it is
             if (t !== state.t) state.spin -= ringDelta(state.t, t, 4) * STEP;
             if (s !== state.s) state.subSpin -= ringDelta(state.s, s, 3) * SUB_STEP;
@@ -3275,6 +3285,89 @@
         };
 
         window.mkGoSubAt = function (s) { window.mkGoSub(state.t, s); };
+
+        /* ── Reconciling the nav with the page that is actually open ──────
+           The strip and the nav chrome read state.t/state.s. The page body is
+           whichever .tab-content carries `active`. Those are two different
+           things, and app.js changes the second one directly from a dozen
+           places this module knows nothing about — the app-wide back-button
+           guard falling back to the home tab, onboarding handing over, a deep
+           link, the Map jumping to an activity, a tutorial step. Every one of
+           them left the strip reading whatever it read before: the reliable
+           way to see it was to open Quests and press back, which swapped the
+           body to Activities under a heading that still said "Quests".
+
+           So the state is reconciled FROM the DOM after every navigation,
+           whoever started it. commit() below is still the only thing that
+           *decides* where to go; this only makes sure the chrome agrees with
+           where the app actually ended up, on every path in. ── */
+
+        /* Which sub-tab pill is lit inside a legacy tab, by the name in its
+           own onclick — the same string switchSubTab matches on. */
+        function activeSubName(tabName) {
+            var parent = $(tabName + 'Tab');
+            var pill = parent ? parent.querySelector('.sub-tab.active') : null;
+            var m = pill ? (pill.getAttribute('onclick') || '')
+                .match(/switchSubTab\('[^']*','([^']*)'\)/) : null;
+            return m ? m[1] : null;
+        }
+
+        /* The NAV entry the open page corresponds to, or null if nothing in
+           the nav owns it. A tab that carries sub-tabs matches on the lit pill
+           too; if none is lit yet (the tab was opened before its first render)
+           the first entry for that tab stands in, which is what the app itself
+           falls back to. */
+        function openEntryIndex() {
+            var active = document.querySelector('.tab-content.active');
+            if (!active || !active.id) return null;
+            var id = active.id, loose = null;
+            for (var t = 0; t < NAV.length; t++) {
+                for (var s = 0; s < NAV[t].subs.length; s++) {
+                    var e = NAV[t].subs[s];
+                    if (e.kind === 'empty') { if (e.el === id) return [t, s]; continue; }
+                    if (e.tab + 'Tab' !== id) continue;
+                    if (e.kind !== 'legacySub') return [t, s];
+                    if (e.sub === activeSubName(e.tab)) return [t, s];
+                    if (loose === null) loose = [t, s];
+                }
+            }
+            return loose;
+        }
+
+        var reconciling = false;   /* commit() sets the state itself */
+
+        function syncNavToPage() {
+            if (reconciling) return;
+            var at = openEntryIndex();
+            if (!at) return;
+            var t = at[0], s = at[1];
+            if (t !== state.t || s !== state.s) {
+                state.spin    -= ringDelta(state.t, t, 4) * STEP;
+                state.subSpin -= ringDelta(state.s, s, 3) * SUB_STEP;
+                state.t = t; state.s = s; state.mem[t] = s;
+                bumpLedgerIdle();
+                renderNav();
+            }
+            /* Always: the strip also carries the borrowed page controls, and
+               which of those belong depends on more than the entry — the quest
+               detail view takes the Quests toolbar back off the title row. */
+            renderPageStrip();
+        }
+
+        /* app.js owns switchTab/switchSubTab and several of its own wrappers
+           already sit on them; this goes on last, so it sees the finished
+           navigation whichever wrapper started it. */
+        function bindNavSync() {
+            ['switchTab', 'switchSubTab'].forEach(function (name) {
+                var orig = window[name];
+                if (typeof orig !== 'function') return;
+                window[name] = function () {
+                    var r = orig.apply(this, arguments);
+                    try { syncNavToPage(); } catch (e) {}
+                    return r;
+                };
+            });
+        }
 
         window.mkStep = function (delta) {
             var n = state.s + delta;
@@ -3554,6 +3647,7 @@
 
         function boot() {
             document.body.classList.add('mk-nav-' + state.navStyle);
+            bindNavSync();
             renderPageStrip();
             renderNav();
             renderGrit();
