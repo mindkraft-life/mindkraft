@@ -47,7 +47,8 @@ never past the old peak plus one, and an undo taking the bonus back with it.
 
 Also covered: the Berserk target's dampener (a personal best must make tomorrow
 *a little* harder, not proportionally harder) and its floor on a new account;
-the ±30% swing landing on the user's own XP ledger rather than a shadow one;
+the swing scaling with the chosen window at 10% per hour and landing on the
+user's own XP ledger rather than a shadow one;
 the Focus Window multiplier, its exclusion of perform-negative activities, and
 windows that cross midnight; Stake's all-or-nothing payout and its forfeit;
 both wagered modes actually ending when ended early; Habit's

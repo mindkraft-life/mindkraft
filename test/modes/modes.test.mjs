@@ -120,9 +120,12 @@ const out = await page.evaluate(async () => {
         card.wagerMin === 25 && card.wagerMax === 100 && card.wagerStep === 25);
     ok('a won wager returns 30% on top', card.wagerReturn === 0.30);
     ok('a pact stakes 40 a side', card.pactWager === 40);
-    ok('berserk swings 30% either way', card.berserkSwing === 0.30);
-    ok('focus is well under berserk', card.focusMultiplier < card.berserkSwing / 2,
-        [card.focusMultiplier, card.berserkSwing]);
+    ok('berserk swings 10% per hour of the window chosen',
+        card.berserkSwingPerHour === 0.10 &&
+        card.berserkSwingAt[1] === 0.10 && card.berserkSwingAt[5] === 0.50,
+        card.berserkSwingAt);
+    ok('focus is well under a long berserk', card.focusMultiplier < card.berserkSwingAt[5] / 2,
+        [card.focusMultiplier, card.berserkSwingAt[5]]);
     ok('all seven modes are present', card.kinds.length === 7, card.kinds);
 
     // ══ ONE MODE AT A TIME ════════════════════════════════════════════════
@@ -282,9 +285,22 @@ const out = await page.evaluate(async () => {
     ok('berserk progress is the XP earned in the window', window.__mm.berserkEarned() === 200,
         window.__mm.berserkEarned());
     await window.__mm.resolveBerserk();
-    ok('clearing the target pays 30% of what was earned',
-        window.userData.totalXP === beforeXP + 60, [beforeXP, window.userData.totalXP]);
+    ok('clearing a 1-hour target pays 10% of what was earned',
+        window.userData.totalXP === beforeXP + 20, [beforeXP, window.userData.totalXP]);
     ok('a cleared berserk ends the mode', window.__mm.active() === null);
+
+    // The same win over the longest window pays five times as much — the whole
+    // point of the swing scaling: a flat rate made the 1-hour dash strictly
+    // better than committing to five.
+    boot(1000);
+    const beforeXP5 = window.userData.totalXP;
+    await window.__mm.activate('berserk', {
+        hours: 5, startedAtMs: Date.now() - 1000, endsAt: Date.now() + 3600000,
+        targetXP: 100, perHourTarget: 20, resolved: false }, 40);
+    A().completionHistory.push({ date: new Date().toISOString(), xp: 200 });
+    await window.__mm.resolveBerserk();
+    ok('clearing a 5-hour target pays 50% of what was earned',
+        window.userData.totalXP === beforeXP5 + 100, [beforeXP5, window.userData.totalXP]);
 
     boot(1000);
     await window.__mm.activate('berserk', {
@@ -292,8 +308,8 @@ const out = await page.evaluate(async () => {
         targetXP: 100, perHourTarget: 100, resolved: false }, 40);
     window.userData.totalXP = 5000; window.userData.currentXP = 5000;
     await window.__mm.resolveBerserk();
-    ok('an expired berserk takes 30% of the target when nothing was logged',
-        window.userData.totalXP === 5000 - 30, window.userData.totalXP);
+    ok('an expired 1-hour berserk takes 10% of the target when nothing was logged',
+        window.userData.totalXP === 5000 - 10, window.userData.totalXP);
     ok('a lost berserk ends the mode', window.__mm.active() === null);
     ok('berserk never touches Grit beyond its entry cost', G().balance === 960, G().balance);
 
