@@ -1115,6 +1115,7 @@ async function readWeaveUsage(uid) {
         lastTreeRegenAt: data.lastTreeRegenAt || null,
         goalRegenAt: data.goalRegenAt || {},
         goalRegenCount: data.goalRegenCount || {},
+        goalFreeAt: data.goalFreeAt || {},
         count: fresh ? 0 : (data.count || 0),
         windowStart: fresh ? new Date(now).toISOString() : data.windowStart,
     };
@@ -1134,15 +1135,23 @@ async function commitWeaveUsage(usage, mode, goalId, isTreeRegen) {
     if (mode === 'regenerate' && goalId) {
         next.goalRegenAt = Object.assign({}, usage.goalRegenAt, { [goalId]: now });
         // Counting only successful weaves is what makes a failed one cost
-        // nothing — neither a free pass nor the month.
+        // nothing — neither a free reweave nor the month.
         const used = (usage.goalRegenCount || {})[goalId] || 0;
         next.goalRegenCount = Object.assign({}, usage.goalRegenCount, { [goalId]: used + 1 });
+        // Priced against the record as it stood BEFORE this weave, which is
+        // what the user was shown. Only a free reweave starts the monthly
+        // clock; a paid one leaves it running, so paying never costs you the
+        // free reweave you were waiting for.
+        if (webWeaver.goalRegenPricing(usage, goalId).free) {
+            next.goalFreeAt = Object.assign({}, usage.goalFreeAt, { [goalId]: now });
+        }
     }
     await usage.ref.set(next, { merge: true });
     return {
         lastTreeRegenAt: next.lastTreeRegenAt || usage.lastTreeRegenAt || null,
         goalRegenAt: next.goalRegenAt || usage.goalRegenAt || {},
         goalRegenCount: next.goalRegenCount || usage.goalRegenCount || {},
+        goalFreeAt: next.goalFreeAt || usage.goalFreeAt || {},
     };
 }
 
@@ -1350,6 +1359,7 @@ exports.weaveWeb = onCall(
                 lastTreeRegenAt: usage.lastTreeRegenAt,
                 goalRegenAt: usage.goalRegenAt,
                 goalRegenCount: usage.goalRegenCount,
+                goalFreeAt: usage.goalFreeAt,
             } }, blocked);
         }
 

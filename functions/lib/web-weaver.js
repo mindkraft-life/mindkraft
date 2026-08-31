@@ -41,11 +41,29 @@ const REGEN_COOLDOWN_DAYS = 30;
 // A thread's first few reweaves are free and uncooled: someone finding the
 // wording of a new goal usually needs two or three passes to get it right,
 // and making them wait a month for that is how a map gets abandoned in its
-// first week. The monthly clock is what stops habitual respinning later, so
-// it only starts once the allowance is gone. The count lives in the server's
-// own usage record beside the clock it gates, not in the user's document —
-// a counter a client can edit is not a limit.
+// first week. After those, one free reweave arrives every month, and anything
+// beyond it is bought with Grit — so there is never a wall, only a price.
+// The counts live in the server's own usage record, not in the user's
+// document: a counter a client can edit is not a limit.
 const GOAL_REGEN_FREE = 3;
+
+// Whether this thread's next reweave is free. The one place that rule lives:
+// commitWeaveUsage stamps the monthly clock from it, and the client mirrors
+// it for what the screen promises. Two copies of this rule would eventually
+// disagree about someone's money.
+//
+// The monthly clock is stamped ONLY by a free reweave, so paying never pushes
+// back the next free one. Availability is elapsed-time, not a balance, so a
+// quiet six months still yields exactly one free reweave, never six.
+function goalRegenPricing(usage, goalId) {
+    usage = usage || {};
+    const used = ((usage.goalRegenCount || {})[goalId]) || 0;
+    if (used < GOAL_REGEN_FREE) {
+        return { free: true, introLeft: GOAL_REGEN_FREE - used, daysToFree: 0 };
+    }
+    const left = cooldownLeft((usage.goalFreeAt || {})[goalId]);
+    return { free: left === 0, introLeft: 0, daysToFree: left };
+}
 
 // A node with no prerequisites is born revealed — the anchors (the user's own
 // activities, which they can obviously already read) and the wildcard.
@@ -208,19 +226,9 @@ function gateFor(mode, techTree, userData, payload, usage) {
         if (!goals.some((g) => g.id === payload.goalId)) {
             return { reason: 'gate', message: 'That goal no longer exists.' };
         }
-        // Free passes first; the monthly clock is not consulted until they run out.
-        const used = ((usage.goalRegenCount || {})[payload.goalId]) || 0;
-        if (used < GOAL_REGEN_FREE) return null;
-
-        const left = cooldownLeft((usage.goalRegenAt || {})[payload.goalId]);
-        if (left > 0) {
-            return {
-                reason: 'cooldown',
-                message: 'This thread can be rewoven once a month — ' + left + ' day' +
-                    (left === 1 ? '' : 's') + ' to go.',
-                days: left,
-            };
-        }
+        // No clock here any more. Past the free allowance a reweave is bought,
+        // not waited out, and the price is settled client-side like every
+        // other Grit spend. The weekly ceiling is what stops runaway use.
         return null;
     }
 
@@ -961,6 +969,7 @@ module.exports = {
     REGEN_COOLDOWN_DAYS,
     GOAL_REGEN_FREE,
     VALID_MODES,
+    goalRegenPricing,
     activitySnapshot,
     buildExpandPrompt,
     buildGeneratePrompt,

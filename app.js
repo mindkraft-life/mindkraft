@@ -14055,9 +14055,11 @@
         // A thread's first few recreations are free and uncooled — getting the
         // wording of a new goal right usually takes a couple of passes, and a
         // month's wait for that is how a map gets abandoned in week one. After
-        // the allowance, a recreation costs Grit AND waits out the month.
-        // The count is the server's (aiUsage/mapWeave); goal.regenCount is the
-        // copy this screen reads, refreshed from every answer the server gives.
+        // those, one free recreation arrives each month; anything beyond it is
+        // bought. There is never a wall, only a price.
+        // The counts are the server's (aiUsage/mapWeave); goal.regenCount and
+        // goal.freeWeaveAt are the copies this screen reads, refreshed from
+        // every answer the server gives.
         var TT_GOAL_REGEN_FREE = 3;
         var TT_GOAL_REGEN_COST = 100;
 
@@ -14282,7 +14284,7 @@
                 id: ttNewId('goal'), rawText: rawText, sharpened: '', shortName: rawText.slice(0, 14),
                 kind: 'destination', kindReason: null, sharpenedEditedByUser: false, color: null,
                 createdAt: new Date().toISOString(), achievedAt: null, retiredAt: null,
-                regeneratedAt: null, regenCount: 0
+                regeneratedAt: null, regenCount: 0, freeWeaveAt: null
             };
         }
 
@@ -14680,9 +14682,11 @@
             tt.lastRegenAt = usage.lastTreeRegenAt || null;
             var per = usage.goalRegenAt || {};
             var used = usage.goalRegenCount || {};
+            var freeAt = usage.goalFreeAt || {};
             (tt.goals || []).forEach(function(g) {
                 g.regeneratedAt = per[g.id] || null;
                 g.regenCount = used[g.id] || 0;
+                g.freeWeaveAt = freeAt[g.id] || null;
             });
         }
 
@@ -14832,17 +14836,23 @@
         // — this is the same rule, computed early enough to say so honestly.
         function ttGoalRegenState(goal) {
             var used = goal.regenCount || 0;
-            var free = used < TT_GOAL_REGEN_FREE;
-            var left = free ? 0 : ttCooldownLeft(goal.regeneratedAt);
+            var intro = used < TT_GOAL_REGEN_FREE;
+            // Days until the monthly free one returns. Only a free recreation
+            // stamps that clock, so paying never delays it.
+            var toFree = intro ? 0 : ttCooldownLeft(goal.freeWeaveAt);
+            var free = intro || toFree === 0;
             var cost = free ? 0 : TT_GOAL_REGEN_COST;
             return {
                 used: used,
                 free: free,
-                freeLeft: Math.max(0, TT_GOAL_REGEN_FREE - used),
-                cooldown: left,
+                intro: intro,
+                introLeft: Math.max(0, TT_GOAL_REGEN_FREE - used),
+                daysToFree: toFree,
                 cost: cost,
                 affordable: gritBalance() >= cost,
-                ready: !left && gritBalance() >= cost && !_ttWeaving
+                // No clock in here: past the allowance a recreation is bought,
+                // not waited out, so only the price can stand in the way.
+                ready: gritBalance() >= cost && !_ttWeaving
             };
         }
 
@@ -14855,10 +14865,6 @@
             var goal = ttGoalById(goalId);
             if (!goal) return false;
             var st = ttGoalRegenState(goal);
-            if (st.cooldown) {
-                showToast('This thread was recreated recently — free again in ' + st.cooldown + ' day' + (st.cooldown === 1 ? '' : 's'), 'olive');
-                return false;
-            }
             if (!st.affordable) {
                 showToast((st.cost - gritBalance()) + ' Grit short to recreate this thread', 'red');
                 return false;
@@ -15420,18 +15426,28 @@
                 await ttRegenerateGoal(one.id);
             };
 
+            // Never say "free again in N days" for a state that will cost 100
+            // Grit when it arrives — that reads as the allowance refilling.
+            // Each line says what THIS recreation costs, then when the next
+            // free one lands.
             var status = '';
             if (st) {
-                status = st.free
-                    ? '<p class="tt-read-status">Free recreation · ' + st.freeLeft + ' of ' + TT_GOAL_REGEN_FREE + ' left</p>'
-                    : st.cooldown
-                        ? '<p class="tt-read-status tt-short">Free again in ' + st.cooldown + ' day' + (st.cooldown === 1 ? '' : 's') + '</p>'
-                        : '<p class="tt-read-status' + (st.affordable ? '' : ' tt-short') + '">' + st.cost + ' Grit to recreate'
-                          + (st.affordable ? '' : ' · ' + (st.cost - gritBalance()) + ' short') + '</p>';
+                if (st.intro) {
+                    status = 'Free recreation · ' + st.introLeft + ' of ' + TT_GOAL_REGEN_FREE + ' left';
+                } else if (st.free) {
+                    status = 'Free recreation · your one this month';
+                } else if (st.affordable) {
+                    status = st.cost + ' Grit · next free one in ' + st.daysToFree
+                           + ' day' + (st.daysToFree === 1 ? '' : 's');
+                } else {
+                    status = st.cost + ' Grit · ' + (st.cost - gritBalance()) + ' short';
+                }
+                status = '<p class="tt-read-status' + (st.ready ? '' : ' tt-short') + '">'
+                       + status + '</p>';
             }
 
             var confirmLabel = st
-                ? 'Recreate' + (st.cost && !st.cooldown ? ' · ' + st.cost : '')
+                ? 'Recreate' + (st.cost ? ' · ' + st.cost : '')
                 : 'Save';
 
             ttShowOverlay('<div class="tt-form">'

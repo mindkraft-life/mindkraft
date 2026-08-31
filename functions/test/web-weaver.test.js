@@ -102,49 +102,67 @@ const twoGoals = () => techTree({
     nodes: [{ id: 'n1', lifecycle: 'available', title: 'X' }],
 });
 
-test('each goal carries its own monthly reweave clock, once its free passes are gone', () => {
+test('the gate no longer prices a reweave — it only checks the goal is real', () => {
+    // Past the allowance and rewoven moments ago: still allowed, because the
+    // user may be paying. Grit is client-side; the gate cannot see it.
     const tt = twoGoals();
-    const usage = {
-        goalRegenAt: { g1: ago(2), g2: ago(2) },
-        goalRegenCount: { g1: w.GOAL_REGEN_FREE, g2: w.GOAL_REGEN_FREE },
-    };
-    const blocked = w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage);
-    assert.strictEqual(blocked.reason, 'cooldown');
-    assert.strictEqual(blocked.days, 28);
-
-    // g2 spent its allowance too, but long enough ago that its clock has run out.
-    const off = { goalRegenAt: { g2: ago(31) }, goalRegenCount: { g2: w.GOAL_REGEN_FREE } };
-    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g2' }, off), null);
+    const spent = { goalRegenCount: { g1: 9 }, goalFreeAt: { g1: ago(0) }, goalRegenAt: { g1: ago(0) } };
+    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, spent), null);
 });
 
-test('the first reweaves of a thread are free and uncooled', () => {
-    const tt = twoGoals();
-    // Rewoven moments ago, but still inside the allowance: no clock applies.
+test('the first three reweaves of a thread are free', () => {
     for (let used = 0; used < w.GOAL_REGEN_FREE; used++) {
-        const usage = { goalRegenAt: { g1: ago(0) }, goalRegenCount: { g1: used } };
-        assert.strictEqual(
-            w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage), null,
-            'reweave ' + (used + 1) + ' should be free',
-        );
+        // Free moments ago, but the intro allowance ignores the clock.
+        const p = w.goalRegenPricing({ goalRegenCount: { g1: used }, goalFreeAt: { g1: ago(0) } }, 'g1');
+        assert.strictEqual(p.free, true, 'reweave ' + (used + 1) + ' should be free');
+        assert.strictEqual(p.introLeft, w.GOAL_REGEN_FREE - used);
     }
-    // The one after the allowance is the first the clock can refuse.
-    const spent = { goalRegenAt: { g1: ago(0) }, goalRegenCount: { g1: w.GOAL_REGEN_FREE } };
-    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, spent).reason, 'cooldown');
 });
 
-test('one goal spending its allowance does not touch another goal', () => {
-    const tt = twoGoals();
-    const usage = { goalRegenAt: { g1: ago(1) }, goalRegenCount: { g1: 9 } };
-    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage).reason, 'cooldown');
-    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g2' }, usage), null);
+test('after the allowance, one reweave a month is free and the rest are bought', () => {
+    const spent = (days) => ({ goalRegenCount: { g1: w.GOAL_REGEN_FREE }, goalFreeAt: { g1: ago(days) } });
+    const justUsed = w.goalRegenPricing(spent(2), 'g1');
+    assert.strictEqual(justUsed.free, false);
+    assert.strictEqual(justUsed.daysToFree, 28);
+
+    assert.strictEqual(w.goalRegenPricing(spent(31), 'g1').free, true);
+    assert.strictEqual(w.goalRegenPricing(spent(31), 'g1').daysToFree, 0);
 });
 
-test('a usage record written before the allowance existed still gates', () => {
-    // Old records carry goalRegenAt but no goalRegenCount. Those reweaves are
-    // read as unspent, so the user is handed the allowance rather than a wall.
-    const tt = twoGoals();
-    const legacy = { goalRegenAt: { g1: ago(2) } };
-    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, legacy), null);
+test('the free reweave does not stack — six quiet months still yield one', () => {
+    // Availability is elapsed time, not a balance, so there is nothing to
+    // accumulate: the answer is the same at 31 days and at 180.
+    const at = (d) => w.goalRegenPricing(
+        { goalRegenCount: { g1: 5 }, goalFreeAt: { g1: ago(d) } }, 'g1');
+    assert.deepStrictEqual(at(31), at(180));
+    assert.strictEqual(at(180).free, true);
+    assert.strictEqual(at(180).introLeft, 0);
+});
+
+test('paying does not push back the next free reweave', () => {
+    // goalRegenAt moves on every reweave, paid ones included; goalFreeAt only
+    // on a free one. Pricing must read the second, or buying a reweave would
+    // cost the user the free one they were waiting for.
+    const usage = {
+        goalRegenCount: { g1: 8 },
+        goalFreeAt: { g1: ago(29) },   // free one taken 29 days ago
+        goalRegenAt: { g1: ago(0) },   // a paid one taken just now
+    };
+    assert.strictEqual(w.goalRegenPricing(usage, 'g1').daysToFree, 1);
+});
+
+test('one thread\'s reweaves never touch another\'s', () => {
+    const usage = { goalRegenCount: { g1: 9 }, goalFreeAt: { g1: ago(1) } };
+    assert.strictEqual(w.goalRegenPricing(usage, 'g1').free, false);
+    assert.strictEqual(w.goalRegenPricing(usage, 'g2').free, true);
+    assert.strictEqual(w.goalRegenPricing(usage, 'g2').introLeft, w.GOAL_REGEN_FREE);
+});
+
+test('a usage record predating the monthly clock gets a free reweave, not a wall', () => {
+    // Records written by the previous version carry goalRegenCount but no
+    // goalFreeAt. Read as never-taken, so the monthly cycle starts on use.
+    const legacy = { goalRegenCount: { g1: w.GOAL_REGEN_FREE }, goalRegenAt: { g1: ago(2) } };
+    assert.strictEqual(w.goalRegenPricing(legacy, 'g1').free, true);
 });
 
 test('the tree clock and the goal clocks are independent', () => {
