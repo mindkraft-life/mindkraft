@@ -14052,6 +14052,15 @@
         // The server owns both — these are for what the screen says.
         var TT_REGEN_COOLDOWN_DAYS = 30;
 
+        // A thread's first few recreations are free and uncooled — getting the
+        // wording of a new goal right usually takes a couple of passes, and a
+        // month's wait for that is how a map gets abandoned in week one. After
+        // the allowance, a recreation costs Grit AND waits out the month.
+        // The count is the server's (aiUsage/mapWeave); goal.regenCount is the
+        // copy this screen reads, refreshed from every answer the server gives.
+        var TT_GOAL_REGEN_FREE = 3;
+        var TT_GOAL_REGEN_COST = 100;
+
         // Resolution is the biggest moment in the feature; a deep node is
         // worth more than a near one so going deep pays.
         function ttNodeResolveBonus(node) {
@@ -14272,7 +14281,8 @@
             return {
                 id: ttNewId('goal'), rawText: rawText, sharpened: '', shortName: rawText.slice(0, 14),
                 kind: 'destination', kindReason: null, sharpenedEditedByUser: false, color: null,
-                createdAt: new Date().toISOString(), achievedAt: null, retiredAt: null, regeneratedAt: null
+                createdAt: new Date().toISOString(), achievedAt: null, retiredAt: null,
+                regeneratedAt: null, regenCount: 0
             };
         }
 
@@ -14660,15 +14670,20 @@
             }
         }
 
-        // The server owns both cooldown clocks. These fields are the copy the
-        // screen reads, refreshed from every answer the server gives — so a
-        // stale local value self-corrects instead of lying about a date.
+        // The server owns both cooldown clocks and the free-recreation count.
+        // These fields are the copy the screen reads, refreshed from every
+        // answer the server gives — so a stale local value self-corrects
+        // instead of lying about a date or an allowance.
         function ttSyncWeaveUsage(usage) {
             if (!usage) return;
             var tt = ensureTechTree();
             tt.lastRegenAt = usage.lastTreeRegenAt || null;
             var per = usage.goalRegenAt || {};
-            (tt.goals || []).forEach(function(g) { g.regeneratedAt = per[g.id] || null; });
+            var used = usage.goalRegenCount || {};
+            (tt.goals || []).forEach(function(g) {
+                g.regeneratedAt = per[g.id] || null;
+                g.regenCount = used[g.id] || 0;
+            });
         }
 
         function ttWeaveError(res) {
@@ -14811,21 +14826,61 @@
             return Math.max(0, Math.ceil(TT_REGEN_COOLDOWN_DAYS - (Date.now() - t) / 86400000));
         }
 
-        window.ttRegenerateGoal = function(goalId) {
+        // What recreating this thread costs right now. The sheet's status line
+        // and the confirm path both read this, so what the screen promises and
+        // what the button does cannot drift apart. The server decides for real
+        // — this is the same rule, computed early enough to say so honestly.
+        function ttGoalRegenState(goal) {
+            var used = goal.regenCount || 0;
+            var free = used < TT_GOAL_REGEN_FREE;
+            var left = free ? 0 : ttCooldownLeft(goal.regeneratedAt);
+            var cost = free ? 0 : TT_GOAL_REGEN_COST;
+            return {
+                used: used,
+                free: free,
+                freeLeft: Math.max(0, TT_GOAL_REGEN_FREE - used),
+                cooldown: left,
+                cost: cost,
+                affordable: gritBalance() >= cost,
+                ready: !left && gritBalance() >= cost && !_ttWeaving
+            };
+        }
+
+        // Free while the allowance holds, then priced and monthly. The weave
+        // arrives before the Grit leaves, exactly as the whole-tree
+        // regeneration does: a failed weave costs nothing and spends neither
+        // the money nor a free pass — the server only counts a weave that
+        // produced something.
+        window.ttRegenerateGoal = async function(goalId) {
             var goal = ttGoalById(goalId);
-            if (!goal) return;
-            var left = ttCooldownLeft(goal.regeneratedAt);
-            if (left) { showToast('This thread was rewoven recently — free again in ' + left + ' day' + (left === 1 ? '' : 's'), 'olive'); return; }
-            if (!confirm('Reweave this goal\'s thread?\n\nResolved and accepted nodes stay; the unclaimed suggestions are replaced. No other goal is touched. One reweave per goal per month.')) return;
-            ttCloseSheet();
-            ttWeave({ mode: 'regenerate', goalId: goalId });
+            if (!goal) return false;
+            var st = ttGoalRegenState(goal);
+            if (st.cooldown) {
+                showToast('This thread was recreated recently — free again in ' + st.cooldown + ' day' + (st.cooldown === 1 ? '' : 's'), 'olive');
+                return false;
+            }
+            if (!st.affordable) {
+                showToast((st.cost - gritBalance()) + ' Grit short to recreate this thread', 'red');
+                return false;
+            }
+
+            var ok = await ttWeave({ mode: 'regenerate', goalId: goalId });
+            if (!ok) return false;
+
+            if (st.cost) {
+                gritApplyDelta(-st.cost, 'goal_regen', { goalId: goalId, goalName: goal.shortName || goal.rawText });
+                await gritPersist();
+            }
+            // regenCount and regeneratedAt come back from the server on the
+            // weave itself (ttSyncWeaveUsage), so nothing is stamped here.
+            return true;
         };
 
         window.ttRetireGoal = function(goalId) {
             var tt = ensureTechTree();
             var goal = ttGoalById(goalId);
             if (!goal) return;
-            if (!confirm('Retire this goal? Its thread fades and stops growing. Your activities, quests, streaks and XP are untouched — they\'re yours, not the map\'s.')) return;
+            if (!confirm('Delete this thread? It fades from the map and stops growing. Your activities, quests, streaks and XP are untouched — they\'re yours, not the map\'s.')) return;
             goal.retiredAt = new Date().toISOString();
             (tt.nodes || []).forEach(function(n) {
                 var idx = (n.goalIds || []).indexOf(goalId);
@@ -15283,28 +15338,34 @@
         window.renderTechTree = renderTechTree;
 
         // ── Goal menu + readings ─────────────────────────────────────────
+        // Two actions, not three. Editing the reading and reweaving from it were
+        // separate buttons that almost nobody wanted separately — someone
+        // correcting how their goal was read wants a web built from the
+        // correction, not a saved sentence. They are one sheet now.
         window.ttGoalMenu = function(goalId) {
             var g = ttGoalById(goalId);
             if (!g) return;
-            var left = ttCooldownLeft(g.regeneratedAt);
             ttShowSheet('<div class="tt-sheet-body"><div class="tt-sheet-kicker" style="color:' + (g.color || '#9a9a9a') + '">Goal</div>'
                 + '<h3 class="tt-sheet-title">' + escapeHtml(g.sharpened || g.rawText || g.shortName) + '</h3>'
                 + (g.kind === 'rhythm' ? '<p class="tt-sheet-desc">A rhythm — no finish line. It runs.</p>' : '')
                 + '<div class="tt-sheet-actions">'
-                + '<button class="tt-btn tt-btn-ghost" onclick="ttEditReadings(\'' + goalId + '\')">Not right? Edit the reading</button>'
-                + '<button class="tt-btn tt-btn-ghost" onclick="ttRegenerateGoal(\'' + goalId + '\')"' + (left ? ' disabled' : '') + '>'
-                +   'Reweave this thread' + (left ? ' · ' + left + 'd' : '') + '</button>'
-                + '<button class="tt-btn tt-btn-ghost" onclick="ttRetireGoal(\'' + goalId + '\')">Retire this goal</button>'
+                + '<button class="tt-btn tt-btn-ghost" onclick="ttEditReadings(\'' + goalId + '\')">Recreate this thread</button>'
+                + '<button class="tt-btn tt-btn-ghost" onclick="ttRetireGoal(\'' + goalId + '\')">Delete this thread</button>'
                 + '</div></div>');
         };
 
         // The reading is the sentence the AI wove the thread from, so this
         // screen has one job: show what you wrote next to what it understood,
-        // and let you correct the second. It used to be a bare <label> per
-        // goal with no styles at all — the two lines ran together and it read
-        // like a form fault. Now each goal is its own card: your words on top
-        // in your goal's colour, the reading under them in a labelled field.
-        // Opened from a goal's menu it shows that goal alone.
+        // and let you correct either. It used to be a bare <label> per goal
+        // with no styles at all — the two lines ran together and it read like
+        // a form fault. Now each goal is its own card: your words on top in
+        // your goal's colour, the reading under them in a labelled field.
+        //
+        // Opened from a goal's menu it shows that goal alone AND recreates it
+        // on confirm — one action, because correcting the reading and asking
+        // for a web built from the correction are the same intent. Opened from
+        // the map header ("Not right?") it spans every goal and only saves;
+        // there is no single thread to rebuild.
         window.ttEditReadings = function(goalId) {
             ttCloseSheet();
             var tt = ensureTechTree();
@@ -15312,37 +15373,78 @@
             if (goalId) goals = goals.filter(function(g) { return g.id === goalId; });
             if (!goals.length) return;
 
+            var one = goalId ? goals[0] : null;
+            var st = one ? ttGoalRegenState(one) : null;
+
             var rows = goals.map(function(g) {
                 return '<div class="tt-read-card" style="--gc:' + (g.color || '#888') + '">'
-                    + '<div class="tt-read-head"><span class="tt-read-dot"></span>'
-                    +   '<span class="tt-read-k">You wrote</span></div>'
-                    + '<p class="tt-read-raw">' + escapeHtml(g.rawText || g.shortName || '') + '</p>'
+                    + '<label class="tt-read-field tt-read-field-raw">'
+                    +   '<span class="tt-read-head"><span class="tt-read-dot"></span>'
+                    +     '<span class="tt-read-k">You wrote</span></span>'
+                    +   '<input type="text" class="pl-input tt-read-raw-input" data-ttraw="' + g.id + '" maxlength="140"'
+                    +   ' placeholder="What you are actually after" value="' + escapeHtml(g.rawText || g.shortName || '') + '"></label>'
                     + '<label class="tt-read-field"><span class="tt-read-k">We read it as</span>'
                     +   '<input type="text" class="pl-input" data-ttread="' + g.id + '" maxlength="200"'
                     +   ' placeholder="A concrete target, not a restatement" value="' + escapeHtml(g.sharpened || '') + '"></label>'
                     + '</div>';
             }).join('');
 
-            window._ttReadConfirm = function() {
+            // Saving and recreating are one action from a goal's menu, so the
+            // confirm reads the fields, keeps what changed, and only then asks
+            // for the weave — a refused or failed weave leaves the edit saved.
+            window._ttReadConfirm = async function() {
                 var changed = false;
+                document.querySelectorAll('[data-ttraw]').forEach(function(el) {
+                    var g = goals.find(function(x) { return x.id === el.getAttribute('data-ttraw'); });
+                    var v = (el.value || '').trim();
+                    if (g && v && v !== g.rawText) {
+                        g.rawText = v;
+                        g.shortName = v.slice(0, 14);
+                        changed = true;
+                    }
+                });
                 document.querySelectorAll('[data-ttread]').forEach(function(el) {
                     var g = goals.find(function(x) { return x.id === el.getAttribute('data-ttread'); });
                     var v = (el.value || '').trim();
                     if (g && v && v !== g.sharpened) { g.sharpened = v; g.sharpenedEditedByUser = true; changed = true; }
                 });
                 ttCloseOverlay();
-                if (!changed) return;
-                saveUserData().catch(function() {});
-                showToast('Saved — the next weave builds from your words', 'blue');
-                renderTechTree();
+                if (changed) {
+                    saveUserData().catch(function() {});
+                    renderTechTree();
+                }
+                if (!one) {
+                    if (changed) showToast('Saved — the next weave builds from your words', 'blue');
+                    return;
+                }
+                await ttRegenerateGoal(one.id);
             };
 
+            var status = '';
+            if (st) {
+                status = st.free
+                    ? '<p class="tt-read-status">Free recreation · ' + st.freeLeft + ' of ' + TT_GOAL_REGEN_FREE + ' left</p>'
+                    : st.cooldown
+                        ? '<p class="tt-read-status tt-short">Free again in ' + st.cooldown + ' day' + (st.cooldown === 1 ? '' : 's') + '</p>'
+                        : '<p class="tt-read-status' + (st.affordable ? '' : ' tt-short') + '">' + st.cost + ' Grit to recreate'
+                          + (st.affordable ? '' : ' · ' + (st.cost - gritBalance()) + ' short') + '</p>';
+            }
+
+            var confirmLabel = st
+                ? 'Recreate' + (st.cost && !st.cooldown ? ' · ' + st.cost : '')
+                : 'Save';
+
             ttShowOverlay('<div class="tt-form">'
-                + '<h3 class="tt-form-title">' + (goalId ? 'How we read this goal' : 'How we read your goals') + '</h3>'
-                + '<p class="tt-muted">Your words never change. The reading is what the web is built from — sharpen it and the next weave follows it.</p>'
+                + '<h3 class="tt-form-title">' + (goalId ? 'Recreate this thread' : 'How we read your goals') + '</h3>'
+                + '<p class="tt-muted">' + (goalId
+                    ? 'Change either — confirming rebuilds this thread from what is here now. What you have accepted or resolved stays. No other thread is touched.'
+                    : 'The reading is what the web is built from — sharpen it and the next weave follows it.')
+                + '</p>'
                 + '<div class="tt-read-list">' + rows + '</div>'
+                + status
                 + '<div class="tt-form-actions"><button class="tt-btn tt-btn-ghost" onclick="ttCloseOverlay()">Cancel</button>'
-                + '<button class="tt-btn tt-btn-primary" onclick="window._ttReadConfirm&&window._ttReadConfirm()">Save</button></div></div>');
+                + '<button class="tt-btn tt-btn-primary"' + (st && !st.ready ? ' disabled' : '')
+                +   ' onclick="window._ttReadConfirm&&window._ttReadConfirm()">' + confirmLabel + '</button></div></div>');
         };
 
         // ── Open list (secondary compact list — the web is the primary) ──
@@ -17696,7 +17798,7 @@
             var btn = document.getElementById('qcSubmit');
             var form = document.getElementById('qcForm');
             var build = document.getElementById('qcBuilding');
-            var cancel = document.querySelector('#questComposerModal .pl-btn-ghost');
+            var cancel = document.querySelector('#questComposerModal .pl-btn-secondary');
 
             if (btn) { btn.disabled = busy; btn.style.display = busy ? 'none' : ''; }
             if (cancel) cancel.textContent = busy ? 'Cancel' : 'Cancel';
@@ -19268,6 +19370,8 @@
                 case 'node_reveal':      return 'Revealed ' + (m.nodeTitle
                                             ? '"' + m.nodeTitle + '" on your map' : 'a node on your map');
                 case 'tree_regen':       return 'Regenerated your map';
+                case 'goal_regen':       return 'Recreated ' + (m.goalName
+                                            ? '"' + m.goalName + '" on your map' : 'a thread on your map');
                 case 'shield_purchase':  return 'Bought a streak shield';
                 case 'xp_boost_purchase':return 'Bought double XP';
                 case 'gift_shield':      return 'Sent a shield to ' + (m.receiverName || 'a friend');
@@ -19720,7 +19824,7 @@
         // ════════════════════════════════════════════════════════════════════
 
         const TT_REVEAL_COST  = 40;    // §5.2 flat, every node past tier 1
-        const TT_REGEN_COST   = 200;   // §6
+        const TT_REGEN_COST   = 300;   // §6
         const TT_REGEN_MASTERIES = 1;  // §6 the gate that actually matters
 
         // §3.1/§10.2 — which nodes are born revealed. The spec defines tier 1
@@ -22864,7 +22968,7 @@
                       : '') + '</p>' +
                 '</div>' +
                 '<div class="modal-footer pl-modal-footer">' +
-                  '<button type="button" class="pl-btn-ghost" onclick="giftCloseSheet()">Cancel</button>' +
+                  '<button type="button" class="btn-secondary pl-btn-secondary" onclick="giftCloseSheet()">Cancel</button>' +
                   '<button type="button" class="pl-btn-primary" id="giftSendBtn">Send</button>' +
                 '</div>');
             var btn = document.getElementById('giftSendBtn');

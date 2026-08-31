@@ -94,20 +94,57 @@ test('an initial generation never starts the tree clock', () => {
     assert.strictEqual(w.gateFor('generate', tt, userDoc(), {}, { lastTreeRegenAt: ago(1) }), null);
 });
 
-test('each goal carries its own monthly reweave clock', () => {
-    const tt = techTree({
-        goals: [
-            { id: 'g1', rawText: 'A', retiredAt: null },
-            { id: 'g2', rawText: 'B', retiredAt: null },
-        ],
-        nodes: [{ id: 'n1', lifecycle: 'available', title: 'X' }],
-    });
-    const usage = { goalRegenAt: { g1: ago(2) } };
+const twoGoals = () => techTree({
+    goals: [
+        { id: 'g1', rawText: 'A', retiredAt: null },
+        { id: 'g2', rawText: 'B', retiredAt: null },
+    ],
+    nodes: [{ id: 'n1', lifecycle: 'available', title: 'X' }],
+});
+
+test('each goal carries its own monthly reweave clock, once its free passes are gone', () => {
+    const tt = twoGoals();
+    const usage = {
+        goalRegenAt: { g1: ago(2), g2: ago(2) },
+        goalRegenCount: { g1: w.GOAL_REGEN_FREE, g2: w.GOAL_REGEN_FREE },
+    };
     const blocked = w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage);
     assert.strictEqual(blocked.reason, 'cooldown');
     assert.strictEqual(blocked.days, 28);
-    // g2 has never been rewoven, so its own clock has not started.
+
+    // g2 spent its allowance too, but long enough ago that its clock has run out.
+    const off = { goalRegenAt: { g2: ago(31) }, goalRegenCount: { g2: w.GOAL_REGEN_FREE } };
+    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g2' }, off), null);
+});
+
+test('the first reweaves of a thread are free and uncooled', () => {
+    const tt = twoGoals();
+    // Rewoven moments ago, but still inside the allowance: no clock applies.
+    for (let used = 0; used < w.GOAL_REGEN_FREE; used++) {
+        const usage = { goalRegenAt: { g1: ago(0) }, goalRegenCount: { g1: used } };
+        assert.strictEqual(
+            w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage), null,
+            'reweave ' + (used + 1) + ' should be free',
+        );
+    }
+    // The one after the allowance is the first the clock can refuse.
+    const spent = { goalRegenAt: { g1: ago(0) }, goalRegenCount: { g1: w.GOAL_REGEN_FREE } };
+    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, spent).reason, 'cooldown');
+});
+
+test('one goal spending its allowance does not touch another goal', () => {
+    const tt = twoGoals();
+    const usage = { goalRegenAt: { g1: ago(1) }, goalRegenCount: { g1: 9 } };
+    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, usage).reason, 'cooldown');
     assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g2' }, usage), null);
+});
+
+test('a usage record written before the allowance existed still gates', () => {
+    // Old records carry goalRegenAt but no goalRegenCount. Those reweaves are
+    // read as unspent, so the user is handed the allowance rather than a wall.
+    const tt = twoGoals();
+    const legacy = { goalRegenAt: { g1: ago(2) } };
+    assert.strictEqual(w.gateFor('regenerate', tt, userDoc(), { goalId: 'g1' }, legacy), null);
 });
 
 test('the tree clock and the goal clocks are independent', () => {

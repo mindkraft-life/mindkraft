@@ -33,10 +33,19 @@ const WILDCARD_MAX_XP = 8;
 const ACTIVITY_SNAPSHOT_CAP = 80;
 const VALID_FREQUENCIES = ['daily', 'weekly', 'biweekly', 'monthly', 'occasional'];
 
-// One reweave per goal per month, and one whole-tree regeneration per month,
-// on separate clocks. Neither starts at the first generation — the initial
-// weave is free and immediate.
+// One whole-tree regeneration per month, and — once the free allowance is
+// spent — one reweave per goal per month, on separate clocks. Neither starts
+// at the first generation: the initial weave is free and immediate.
 const REGEN_COOLDOWN_DAYS = 30;
+
+// A thread's first few reweaves are free and uncooled: someone finding the
+// wording of a new goal usually needs two or three passes to get it right,
+// and making them wait a month for that is how a map gets abandoned in its
+// first week. The monthly clock is what stops habitual respinning later, so
+// it only starts once the allowance is gone. The count lives in the server's
+// own usage record beside the clock it gates, not in the user's document —
+// a counter a client can edit is not a limit.
+const GOAL_REGEN_FREE = 3;
 
 // A node with no prerequisites is born revealed — the anchors (the user's own
 // activities, which they can obviously already read) and the wildcard.
@@ -199,6 +208,10 @@ function gateFor(mode, techTree, userData, payload, usage) {
         if (!goals.some((g) => g.id === payload.goalId)) {
             return { reason: 'gate', message: 'That goal no longer exists.' };
         }
+        // Free passes first; the monthly clock is not consulted until they run out.
+        const used = ((usage.goalRegenCount || {})[payload.goalId]) || 0;
+        if (used < GOAL_REGEN_FREE) return null;
+
         const left = cooldownLeft((usage.goalRegenAt || {})[payload.goalId]);
         if (left > 0) {
             return {
@@ -946,6 +959,7 @@ module.exports = {
     MIN_ACTIVITIES,
     MAX_TOKENS,
     REGEN_COOLDOWN_DAYS,
+    GOAL_REGEN_FREE,
     VALID_MODES,
     activitySnapshot,
     buildExpandPrompt,
