@@ -1114,6 +1114,7 @@ async function readWeaveUsage(uid) {
         ref,
         lastTreeRegenAt: data.lastTreeRegenAt || null,
         goalRegenAt: data.goalRegenAt || {},
+        goalRegenCount: data.goalRegenCount || {},
         count: fresh ? 0 : (data.count || 0),
         windowStart: fresh ? new Date(now).toISOString() : data.windowStart,
     };
@@ -1132,11 +1133,16 @@ async function commitWeaveUsage(usage, mode, goalId, isTreeRegen) {
     if (isTreeRegen) next.lastTreeRegenAt = now;
     if (mode === 'regenerate' && goalId) {
         next.goalRegenAt = Object.assign({}, usage.goalRegenAt, { [goalId]: now });
+        // Counting only successful weaves is what makes a failed one cost
+        // nothing — neither a free pass nor the month.
+        const used = (usage.goalRegenCount || {})[goalId] || 0;
+        next.goalRegenCount = Object.assign({}, usage.goalRegenCount, { [goalId]: used + 1 });
     }
     await usage.ref.set(next, { merge: true });
     return {
         lastTreeRegenAt: next.lastTreeRegenAt || usage.lastTreeRegenAt || null,
         goalRegenAt: next.goalRegenAt || usage.goalRegenAt || {},
+        goalRegenCount: next.goalRegenCount || usage.goalRegenCount || {},
     };
 }
 
@@ -1340,7 +1346,11 @@ exports.weaveWeb = onCall(
 
         const blocked = webWeaver.gateFor(mode, techTree, userData, { goalId }, usage);
         if (blocked) {
-            return Object.assign({ ok: false, usage: { lastTreeRegenAt: usage.lastTreeRegenAt, goalRegenAt: usage.goalRegenAt } }, blocked);
+            return Object.assign({ ok: false, usage: {
+                lastTreeRegenAt: usage.lastTreeRegenAt,
+                goalRegenAt: usage.goalRegenAt,
+                goalRegenCount: usage.goalRegenCount,
+            } }, blocked);
         }
 
         // A generate against a web that already has nodes IS the whole-tree
