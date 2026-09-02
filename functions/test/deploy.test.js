@@ -78,16 +78,36 @@ test('a failed composition costs the user nothing', () => {
     }
 });
 
-test('VAPID is configured at module scope, not inside a handler', () => {
-    // Every 2nd-gen function gets its own container and runs this file's
-    // top-level code on cold start. configureWebPush guards itself with a
-    // module-level flag, so calling it from inside one handler leaves every
-    // OTHER function's container sending unauthenticated pushes — which the
-    // push service rejects with 401, a status that is not in
-    // DEAD_SUBSCRIPTION_STATUS and so never clears or retries.
-    const calls = [...index.matchAll(/^(\s*)configureWebPush\(\{/gm)];
-    assert.strictEqual(calls.length, 1, 'expected exactly one configureWebPush call');
-    assert.strictEqual(calls[0][1], '', 'the call must be at module scope, unindented');
-    assert.ok(calls[0].index < index.indexOf('exports.'),
-        'it must run before any function is exported');
+test('VAPID is configured on every send path, and never at module scope', () => {
+    // Two failure modes, one test.
+    //
+    // Configure in only ONE handler and the others break: every 2nd-gen
+    // function gets its own container, configureWebPush guards itself with a
+    // module-level flag, and an unconfigured container's pushes come back 401
+    // — a status not in DEAD_SUBSCRIPTION_STATUS, so it never clears or
+    // retries.
+    //
+    // Configure at MODULE SCOPE and the deploy breaks: the Firebase CLI loads
+    // this file to discover the functions, in a process with no VAPID keys,
+    // and configureWebPush throws without them.
+    const bare = [...index.matchAll(/^configureWebPush\(/gm)];
+    assert.deepStrictEqual(bare.map((m) => m.index), [],
+        'configureWebPush at module scope aborts discovery at deploy time');
+
+    const senders = {
+        pushToUser: index.slice(index.indexOf('async function pushToUser')),
+        sendDueReminders: index.slice(index.indexOf('exports.sendDueReminders')),
+    };
+    for (const [name, block] of Object.entries(senders)) {
+        const configured = block.indexOf('ensureWebPush()');
+        const sends = block.indexOf('sendPush(');
+        assert.ok(configured !== -1, `${name} must call ensureWebPush()`);
+        assert.ok(configured < sends, `${name} must configure before it sends`);
+    }
+
+    // A third sender added later would silently skip the above. Both existing
+    // ones are covered, so the count is the tripwire.
+    const sendSites = [...index.matchAll(/[^a-zA-Z]sendPush\(/g)].length;
+    assert.strictEqual(sendSites, Object.keys(senders).length,
+        'a new sendPush() call site needs its own ensureWebPush() and a line here');
 });

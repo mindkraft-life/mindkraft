@@ -56,24 +56,33 @@ const db = getFirestore();
 // Deliberately not Secret Manager: that would need extra IAM roles and an
 // interactive CLI step, and this project deploys entirely from CI.
 //
-// Configured HERE, at module scope, and not inside any handler. Every 2nd-gen
-// function runs in its own container and independently executes this file's
-// top-level code on cold start, so VAPID has to be installed before ANY of
-// them sends — not just the scheduled sender. Leaving this call inside
-// sendDueReminders meant every other trigger's container (gifts, pacts,
-// versus, friend requests) called webpush.sendNotification with no VAPID
-// details set, and the push service rejected all of them with 401 — a status
-// that is not in DEAD_SUBSCRIPTION_STATUS, so it failed silently and forever.
+// Called on EVERY send path, not once at module scope. Two constraints meet
+// here and only this shape satisfies both:
 //
-// configureWebPush throws on a missing key, which now takes down every
-// function in this file rather than only the reminder one. That is the
-// intended trade: the deploy workflow already hard-fails when the secrets are
-// unset, and a missing VAPID key should be loud.
-configureWebPush({
-    publicKey: process.env.VAPID_PUBLIC_KEY,
-    privateKey: process.env.VAPID_PRIVATE_KEY,
-    contactEmail: process.env.VAPID_CONTACT_EMAIL,
-});
+//   - Every 2nd-gen function runs in its own container and executes this
+//     file's top-level code on its own cold start. VAPID therefore cannot be
+//     installed inside one handler and relied on by the others: doing that
+//     left every trigger except the scheduled sender (gifts, pacts, versus,
+//     friend requests) calling webpush.sendNotification with no VAPID details
+//     at all, which the push service rejected with 401 — a status that is not
+//     in DEAD_SUBSCRIPTION_STATUS, so it never cleared and never retried.
+//
+//   - configureWebPush throws when a key is missing, and the Firebase CLI
+//     LOADS this module to discover the functions at deploy time, in a
+//     process that has no VAPID keys. At module scope that throw aborts the
+//     whole deploy with "Functions codebase could not be analyzed".
+//
+// lib/push.js guards the real work behind a module-level flag, so this is a
+// no-op after the first call in a container. There are exactly two senders —
+// pushToUser(), which every cross-account trigger goes through, and
+// sendDueReminders — and both call this first.
+function ensureWebPush() {
+    configureWebPush({
+        publicKey: process.env.VAPID_PUBLIC_KEY,
+        privateKey: process.env.VAPID_PRIVATE_KEY,
+        contactEmail: process.env.VAPID_CONTACT_EMAIL,
+    });
+}
 
 // Must match the region hosting the Firestore database — confirmed
 // asia-south1 (Mumbai) in the Firebase Console. Firestore triggers will not
@@ -127,6 +136,8 @@ exports.sendDueReminders = onSchedule(
         retryCount: 0,
     },
     async () => {
+        ensureWebPush();
+
         const now = Timestamp.now();
         const due = await db
 .collectionGroup('reminders')
@@ -321,6 +332,7 @@ async function processUser(uid, snaps, now) {
  */
 async function pushToUser(uid, payload) {
     try {
+        ensureWebPush();
         const snap = await db.collection('users').doc(uid).get();
         const subscription = snap.exists ? snap.data().pushSubscription : null;
         if (!isUsableSubscription(subscription)) {
