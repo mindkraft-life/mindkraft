@@ -99,6 +99,26 @@ const out = await page.evaluate(async () => {
         G().lifetimeEarned === 100 && G().lifetimeSpent === 0,
         { earned: G().lifetimeEarned, spent: G().lifetimeSpent });
 
+    // ── 3b: the path the card's buttons actually take ─────────────────────
+    // completeActivity/undoActivity are reached through the *ById wrappers in
+    // the real UI, and the entry has usually been through Firestore before it
+    // is undone. Both are covered here because neither was, and the stamp has
+    // to survive a JSON round-trip to be readable after a reload.
+    boot(100);
+    await window.completeActivityById('a1');
+    ok('completing by id stamps the entry', hist()[0].gritAwarded === DRIP, hist()[0]);
+    await window.undoActivityById('a1');
+    ok('undoing by id claws the drip back', G().balance === 100, G().balance);
+
+    boot(100);
+    await window.completeActivityById('a1');
+    // setDoc(ref, window.userData) is a JSON round-trip in effect.
+    window.userData = JSON.parse(JSON.stringify(window.userData));
+    ok('gritAwarded survives being persisted and reloaded',
+        hist()[0].gritAwarded === DRIP, hist()[0]);
+    await window.undoActivityById('a1');
+    ok('an undo after a reload still claws the drip back', G().balance === 100, G().balance);
+
     // ── 4: XP reversal is untouched by any of this ────────────────────────
     boot(100);
     const xp0 = window.userData.totalXP, streak0 = A().streak;
