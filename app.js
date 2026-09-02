@@ -5153,10 +5153,12 @@
             }
             activity.completionCount = (activity.completionCount || 0) + 1;
             activity.totalXP = (activity.totalXP || 0) + earnedXP;
-            recordCompletion(activity, activity.isNegative ? -earnedXP : earnedXP);
+            const _completionEntry = recordCompletion(activity, activity.isNegative ? -earnedXP : earnedXP);
             // Grit: +1 drip, week numerator, cadence bonus, streak milestones
             // and boost consumption — one call, same beat as the XP above.
-            try { gritOnCompletion(activity); } catch (e) { console.warn('Grit completion hook failed', e); }
+            // The entry goes in so the drip can be stamped onto it; undoActivity
+            // reads that stamp back to reverse exactly what was paid.
+            try { gritOnCompletion(activity, _completionEntry); } catch (e) { console.warn('Grit completion hook failed', e); }
             // A gifted double-XP lands here, silently until this moment. Marks
             // the gift consumed and queues the reveal — which waits for any
             // level-up card to clear first (§5.2). Fire-and-forget: the XP is
@@ -5294,7 +5296,14 @@
                     }
                     return -1;
                 })();
-                if (lastUserIdx !== -1) activity.completionHistory.splice(lastUserIdx, 1);
+                if (lastUserIdx !== -1) {
+                    // Reverse the Grit this entry paid BEFORE it leaves history —
+                    // the hook reads the amount off the entry itself, same as the
+                    // XP reversal above reads lastUserEntry.xp.
+                    try { gritOnUndo(activity, activity.completionHistory[lastUserIdx]); }
+                    catch (e) { console.warn('Grit undo hook failed', e); }
+                    activity.completionHistory.splice(lastUserIdx, 1);
+                }
             }
             // Remove last cycleHistory entry for custom activities
             if (activity.frequency === 'custom' && activity.cycleHistory && activity.cycleHistory.length > 0) {
@@ -5451,12 +5460,15 @@
             const entryDate = new Date(dateStr + 'T12:00:00');
             const xp = foundActivity.baseXP;
             if (!foundActivity.completionHistory) foundActivity.completionHistory = [];
-            foundActivity.completionHistory.push({ date: entryDate.toISOString(), xp });
+            // Held by reference across the sort below, so the Grit hook can stamp
+            // its drip onto this exact entry wherever it ends up in the array.
+            const newEntry = { date: entryDate.toISOString(), xp };
+            foundActivity.completionHistory.push(newEntry);
             foundActivity.completionHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
             if (foundActivity.completionHistory.length > 365) foundActivity.completionHistory.shift();
 
             await applyRetroactiveRecalculation(foundActivity, foundDi, xp);
-            try { gritOnRetroComplete(foundActivity, dateStr); } catch (e) { console.warn('Grit retro hook failed', e); }
+            try { gritOnRetroComplete(foundActivity, dateStr, newEntry); } catch (e) { console.warn('Grit retro hook failed', e); }
             if (typeof renderHistoryEdit === 'function') renderHistoryEdit();
             renderActivityHistory(true);
             showToast(`Logged ${foundActivity.name} for ${dateStr} (+${xp} XP)`, 'blue', null, 'check');
@@ -5503,18 +5515,20 @@
             );
             if (idx === -1) { showToast('Entry not found.', 'red'); return; }
 
-            const isPenaltyEntry = !!foundActivity.completionHistory[idx].isPenalty;
-            const deletedXP = foundActivity.completionHistory[idx].xp || 0;
+            const deletedEntry = foundActivity.completionHistory[idx];
+            const isPenaltyEntry = !!deletedEntry.isPenalty;
+            const deletedXP = deletedEntry.xp || 0;
             foundActivity.completionHistory.splice(idx, 1);
             // xpDelta: negate the stored xp value.
             // Normal entry: stored xp is positive → delta is negative (deduct from total).
             // Penalty entry: stored xp is negative → delta is positive (restore the deduction).
             await applyRetroactiveRecalculation(foundActivity, foundDi, -deletedXP);
             // Grit: a deleted completion inside the current week leaves the
-            // numerator, mirroring the add. Grit already paid is never clawed
-            // back — no path in this system takes Grit away.
+            // numerator, mirroring the add, and the drip it paid is taken back.
+            // The entry is passed in rather than re-found — it carries the amount
+            // that was actually granted.
             if (!isPenaltyEntry) {
-                try { gritOnRetroDelete(foundActivity, entryDateStr); } catch (e) { console.warn('Grit retro-delete hook failed', e); }
+                try { gritOnRetroDelete(foundActivity, entryDateStr, deletedEntry); } catch (e) { console.warn('Grit retro-delete hook failed', e); }
             }
             if (typeof renderHistoryEdit === 'function') renderHistoryEdit();
             renderActivityHistory(true);
@@ -7777,11 +7791,16 @@
         }
 
         // Hook into completeActivity to record completionHistory
+        // Returns the entry it pushed. Callers that award something reversible
+        // alongside the XP (Grit's drip) stamp the amount onto that same object,
+        // so undo reads back what was actually granted instead of re-deriving it.
         function recordCompletion(activity, xpEarned, isPenalty) {
             if (!activity.completionHistory) activity.completionHistory = [];
-            activity.completionHistory.push({ date: new Date().toISOString(), xp: xpEarned, ...(isPenalty ? { isPenalty: true } : {}) });
+            const entry = { date: new Date().toISOString(), xp: xpEarned, ...(isPenalty ? { isPenalty: true } : {}) };
+            activity.completionHistory.push(entry);
             // Keep last 365 entries to avoid Firestore bloat
             if (activity.completionHistory.length > 365) activity.completionHistory.shift();
+            return entry;
         }
 
         // ── End Analytics System ─────────────────────────────────────────
@@ -18355,13 +18374,19 @@
         // ════════════════════════════════════════════════════════════════════
         //
         // Self-contained. Everything below is namespaced `grit*` and reaches
-        // the rest of the app through four surgical hook points only:
+        // the rest of the app through a handful of surgical hook points only:
         //
         //   predictCompletionXP()  — reads the armed XP boost (×2)
         //   completeActivity()     — one call to gritOnCompletion()
+        //   undoActivity()         — one call to gritOnUndo()
         //   retroactiveComplete()  — one call to gritOnRetroComplete()
         //   retroactiveDelete()    — one call to gritOnRetroDelete()
         //   processStreakPauses()  — one call to gritOnLogin()
+        //
+        // The completion hooks take the completionHistory entry they are paying
+        // for and stamp the amount onto it (`gritAwarded`); the two removal
+        // hooks read that stamp back. Grants and reversals therefore agree by
+        // record, never by re-derivation.
         //
         // Balance and state live in `userData.grit` (rides the existing
         // saveUserData full-document write). The ledger lives in the
@@ -19021,7 +19046,10 @@
 
         // ── Earn: the completion drip (§4.1) ──────────────────────────────
         // The single hook completeActivity() calls, in the same beat as XP.
-        function gritOnCompletion(activity) {
+        // `entry` is the completionHistory row that completion just created; the
+        // drip is stamped onto it so gritOnUndo() can reverse exactly what was
+        // paid rather than re-deriving it later (see gritStampAward).
+        function gritOnCompletion(activity, entry) {
             var g = gritState();
             if (!g || !activity) return;
             if (!gritIsCountable(activity)) return;   // perform-mode negatives earn nothing
@@ -19030,6 +19058,7 @@
 
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name });
+            gritStampAward(entry, GRIT_DRIP);
             gritBumpNumerator(g, activity, +1);
             // Floated from the card by spawnFloatingGrit(), not toasted — see
             // the `floated` flag in gritFlushBurst(). A backdated completion
@@ -19056,26 +19085,85 @@
         // inside the CURRENT week also feeds the numerator; landing it in a
         // CLOSED week does not retroactively move that week's ratio and never
         // triggers a re-reconcile. Backdating stays free and unlimited (§8.3).
-        function gritOnRetroComplete(activity, dateStr) {
+        function gritOnRetroComplete(activity, dateStr, entry) {
             var g = gritState();
             if (!g || !activity || !gritIsCountable(activity)) return;
             gritEnsureWeek();
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name, backdatedTo: dateStr });
+            gritStampAward(entry, GRIT_DRIP);
             if (g.week && dateStr >= g.week.anchor) gritBumpNumerator(g, activity, +1);
             gritBurstAdd((activity.name || 'Completion') + ' (' + dateStr + ')', GRIT_DRIP);
             gritCheckStreakMilestones(activity);
             gritRefreshUI();
         }
 
-        // Deleting a completion inside the current week takes it back out of
-        // the numerator, mirroring the add. The drip already paid is NOT
-        // reclaimed — no spec path claws Grit back, and doing so would make
-        // history editing feel punitive.
-        function gritOnRetroDelete(activity, dateStr) {
+        // ── Reverse: undo and retroactive delete ──────────────────────────
+        // Effort is the only legitimate source of Grit, and Grit is spendable
+        // (shields, boosts, gifts) in a way XP is not. Removing a completion
+        // therefore has to take its drip back: without this, complete → undo →
+        // complete → undo mints unlimited free currency, same-day or backdated,
+        // at zero cost and with no rate limit.
+        //
+        // The amount reversed is read off the completion entry itself, never
+        // re-derived from gritIsCountable(). An activity archived between the
+        // completion and the undo is no longer countable, so re-deriving would
+        // silently reverse nothing — the same rounding-drift trap undoActivity
+        // already avoids for XP by reading back lastUserEntry.xp.
+        //
+        // Entries written before this field existed carry no gritAwarded and are
+        // left alone: we don't know what they paid, and guessing is worse than
+        // skipping. Nothing is backfilled.
+
+        // Stamped only when something was actually granted, so a missing field
+        // and a zero grant read identically. Accumulates rather than assigns:
+        // one completion can pay more than one reversible award, and the stamp
+        // has to total what the entry is actually owed back.
+        function gritStampAward(entry, amount) {
+            if (!entry || !(amount > 0)) return;
+            entry.gritAwarded = (entry.gritAwarded || 0) + amount;
+        }
+
+        // gritApplyDelta books every negative delta as "spent". A reversal is not
+        // a spend — it un-earns something that should never have been paid — so
+        // the lifetime line ("N earned · M spent") has to be corrected, or a
+        // complete/undo loop reads as both earning and spending.
+        function gritReverseEarn(amount, reason, meta) {
+            var g = gritState();
+            if (!g || !(amount > 0)) return;
+            var before = g.balance;
+            gritApplyDelta(-amount, reason, meta || {});
+            var moved = before - g.balance;          // what the clamp actually let out
+            if (moved <= 0) return;
+            g.lifetimeSpent  = Math.max(0, (g.lifetimeSpent  || 0) - moved);
+            g.lifetimeEarned = Math.max(0, (g.lifetimeEarned || 0) - moved);
+        }
+
+        // Same-day undo. Called from undoActivity() with the exact entry it is
+        // about to splice out, before it leaves history.
+        function gritOnUndo(activity, entry) {
+            var g = gritState();
+            if (!g || !activity || !entry || !entry.gritAwarded) return;
+            gritEnsureWeek();
+            gritReverseEarn(entry.gritAwarded, 'completion_undo',
+                { activityId: activity.id, activityTitle: activity.name });
+            // Mirror gritOnCompletion's numerator bump — but only if this
+            // completion actually landed in the week that is open now, so an
+            // undo across a week rollover can't dent the new week's ratio.
+            if (g.week && gritDayOf(entry.date) >= g.week.anchor) gritBumpNumerator(g, activity, -1);
+            gritRefreshUI();
+        }
+
+        // Deleting a completion inside the current week takes it back out of the
+        // numerator, mirroring the add, and reverses the drip it paid.
+        function gritOnRetroDelete(activity, dateStr, entry) {
             var g = gritState();
             if (!g || !activity || !g.week) return;
             if (dateStr >= g.week.anchor) gritBumpNumerator(g, activity, -1);
+            if (entry && entry.gritAwarded) {
+                gritReverseEarn(entry.gritAwarded, 'completion_undo',
+                    { activityId: activity.id, activityTitle: activity.name, backdatedTo: dateStr });
+            }
             gritRefreshUI();
         }
 
@@ -19422,6 +19510,9 @@
                 case 'completion':       return m.backdatedTo
                                             ? 'Logged ' + title + ' for ' + m.backdatedTo
                                             : 'Completed ' + title;
+                case 'completion_undo':  return m.backdatedTo
+                                            ? 'Removed ' + title + ' for ' + m.backdatedTo
+                                            : 'Undid ' + title;
                 case 'cadence_bonus':    return 'On rhythm — ' + title;
                 case 'weekly_bonus':     return 'Weekly bonus — ' +
                                             (m.ratio != null ? Math.round(m.ratio * 100) + '% of target' : 'consistency');
