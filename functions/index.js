@@ -55,6 +55,25 @@ const db = getFirestore();
 //
 // Deliberately not Secret Manager: that would need extra IAM roles and an
 // interactive CLI step, and this project deploys entirely from CI.
+//
+// Configured HERE, at module scope, and not inside any handler. Every 2nd-gen
+// function runs in its own container and independently executes this file's
+// top-level code on cold start, so VAPID has to be installed before ANY of
+// them sends — not just the scheduled sender. Leaving this call inside
+// sendDueReminders meant every other trigger's container (gifts, pacts,
+// versus, friend requests) called webpush.sendNotification with no VAPID
+// details set, and the push service rejected all of them with 401 — a status
+// that is not in DEAD_SUBSCRIPTION_STATUS, so it failed silently and forever.
+//
+// configureWebPush throws on a missing key, which now takes down every
+// function in this file rather than only the reminder one. That is the
+// intended trade: the deploy workflow already hard-fails when the secrets are
+// unset, and a missing VAPID key should be loud.
+configureWebPush({
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+    contactEmail: process.env.VAPID_CONTACT_EMAIL,
+});
 
 // Must match the region hosting the Firestore database — confirmed
 // asia-south1 (Mumbai) in the Firebase Console. Firestore triggers will not
@@ -108,12 +127,6 @@ exports.sendDueReminders = onSchedule(
         retryCount: 0,
     },
     async () => {
-        configureWebPush({
-            publicKey: process.env.VAPID_PUBLIC_KEY,
-            privateKey: process.env.VAPID_PRIVATE_KEY,
-            contactEmail: process.env.VAPID_CONTACT_EMAIL,
-        });
-
         const now = Timestamp.now();
         const due = await db
 .collectionGroup('reminders')

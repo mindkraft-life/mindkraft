@@ -1,0 +1,5 @@
+node_modules/
+
+# Written by the deploy workflow from GitHub secrets — VAPID and API keys.
+# Must never reach the repository.
+functions/.env

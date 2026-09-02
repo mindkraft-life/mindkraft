@@ -77,3 +77,17 @@ test('a failed composition costs the user nothing', () => {
         assert.ok(block.includes(`reason: '${reason}'`), `returns reason '${reason}'`);
     }
 });
+
+test('VAPID is configured at module scope, not inside a handler', () => {
+    // Every 2nd-gen function gets its own container and runs this file's
+    // top-level code on cold start. configureWebPush guards itself with a
+    // module-level flag, so calling it from inside one handler leaves every
+    // OTHER function's container sending unauthenticated pushes — which the
+    // push service rejects with 401, a status that is not in
+    // DEAD_SUBSCRIPTION_STATUS and so never clears or retries.
+    const calls = [...index.matchAll(/^(\s*)configureWebPush\(\{/gm)];
+    assert.strictEqual(calls.length, 1, 'expected exactly one configureWebPush call');
+    assert.strictEqual(calls[0][1], '', 'the call must be at module scope, unindented');
+    assert.ok(calls[0].index < index.indexOf('exports.'),
+        'it must run before any function is exported');
+});
