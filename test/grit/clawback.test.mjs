@@ -121,6 +121,14 @@ const out = await page.evaluate(async () => {
     await window.retroactiveDelete('a1', hist()[0].date);
     ok('retroactive delete claws the drip back', G().balance === 100, G().balance);
     ok('and takes the numerator back out', window.__gc.week().completions === 0, window.__gc.week());
+    // The day is derived from the entry, not passed in, so a backdated removal
+    // still reads differently from a same-day undo in the ledger.
+    const undone = window.__t.ledger().filter(e => e.reason === 'completion_undo').pop();
+    ok('a backdated removal names the day it removed',
+        undone && undone.meta.backdatedTo === back, undone && undone.meta);
+    ok('and phrases it as a removal, not an undo',
+        window.__gc.phrase('completion_undo', { activityTitle: 'Run', backdatedTo: back })
+            === 'Removed Run for ' + back);
 
     // ── 6: archived between completion and undo — still reversed ──────────
     // The point of reading the stamp instead of re-deriving countability:

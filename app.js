@@ -5300,7 +5300,7 @@
                     // Reverse the Grit this entry paid BEFORE it leaves history —
                     // the hook reads the amount off the entry itself, same as the
                     // XP reversal above reads lastUserEntry.xp.
-                    try { gritOnUndo(activity, activity.completionHistory[lastUserIdx]); }
+                    try { gritOnRemoval(activity, activity.completionHistory[lastUserIdx]); }
                     catch (e) { console.warn('Grit undo hook failed', e); }
                     activity.completionHistory.splice(lastUserIdx, 1);
                 }
@@ -5525,10 +5525,10 @@
             await applyRetroactiveRecalculation(foundActivity, foundDi, -deletedXP);
             // Grit: a deleted completion inside the current week leaves the
             // numerator, mirroring the add, and the drip it paid is taken back.
-            // The entry is passed in rather than re-found — it carries the amount
-            // that was actually granted.
+            // The entry is passed in rather than re-found — it carries both the
+            // amount granted and the day, so nothing has to be re-derived.
             if (!isPenaltyEntry) {
-                try { gritOnRetroDelete(foundActivity, entryDateStr, deletedEntry); } catch (e) { console.warn('Grit retro-delete hook failed', e); }
+                try { gritOnRemoval(foundActivity, deletedEntry); } catch (e) { console.warn('Grit retro-delete hook failed', e); }
             }
             if (typeof renderHistoryEdit === 'function') renderHistoryEdit();
             renderActivityHistory(true);
@@ -18378,15 +18378,15 @@
         //
         //   predictCompletionXP()  — reads the armed XP boost (×2)
         //   completeActivity()     — one call to gritOnCompletion()
-        //   undoActivity()         — one call to gritOnUndo()
+        //   undoActivity()         — one call to gritOnRemoval()
         //   retroactiveComplete()  — one call to gritOnRetroComplete()
-        //   retroactiveDelete()    — one call to gritOnRetroDelete()
+        //   retroactiveDelete()    — one call to gritOnRemoval()
         //   processStreakPauses()  — one call to gritOnLogin()
         //
         // The completion hooks take the completionHistory entry they are paying
-        // for and stamp the amount onto it (`gritAwarded`); the two removal
-        // hooks read that stamp back. Grants and reversals therefore agree by
-        // record, never by re-derivation.
+        // for and stamp the amount onto it (`gritAwarded`); gritOnRemoval reads
+        // that stamp back. Grants and reversals agree by record, never by
+        // re-derivation.
         //
         // Balance and state live in `userData.grit` (rides the existing
         // saveUserData full-document write). The ledger lives in the
@@ -19047,8 +19047,8 @@
         // ── Earn: the completion drip (§4.1) ──────────────────────────────
         // The single hook completeActivity() calls, in the same beat as XP.
         // `entry` is the completionHistory row that completion just created; the
-        // drip is stamped onto it so gritOnUndo() can reverse exactly what was
-        // paid rather than re-deriving it later (see gritStampAward).
+        // drip is stamped onto it so gritOnRemoval() can reverse exactly what
+        // was paid rather than re-deriving it later.
         function gritOnCompletion(activity, entry) {
             var g = gritState();
             if (!g || !activity) return;
@@ -19058,7 +19058,7 @@
 
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name });
-            gritStampAward(entry, GRIT_DRIP);
+            if (entry) entry.gritAwarded = GRIT_DRIP;
             gritBumpNumerator(g, activity, +1);
             // Floated from the card by spawnFloatingGrit(), not toasted — see
             // the `floated` flag in gritFlushBurst(). A backdated completion
@@ -19091,7 +19091,7 @@
             gritEnsureWeek();
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name, backdatedTo: dateStr });
-            gritStampAward(entry, GRIT_DRIP);
+            if (entry) entry.gritAwarded = GRIT_DRIP;
             if (g.week && dateStr >= g.week.anchor) gritBumpNumerator(g, activity, +1);
             gritBurstAdd((activity.name || 'Completion') + ' (' + dateStr + ')', GRIT_DRIP);
             gritCheckStreakMilestones(activity);
@@ -19099,70 +19099,39 @@
         }
 
         // ── Reverse: undo and retroactive delete ──────────────────────────
-        // Effort is the only legitimate source of Grit, and Grit is spendable
-        // (shields, boosts, gifts) in a way XP is not. Removing a completion
-        // therefore has to take its drip back: without this, complete → undo →
-        // complete → undo mints unlimited free currency, same-day or backdated,
-        // at zero cost and with no rate limit.
+        // Effort is the only legitimate source of Grit, and unlike XP it is
+        // spendable — shields, boosts, gifts. So removing a completion has to
+        // take its drip back, or complete → undo → complete → undo mints free
+        // currency, same-day or backdated, unlimited and unthrottled.
         //
-        // The amount reversed is read off the completion entry itself, never
-        // re-derived from gritIsCountable(). An activity archived between the
-        // completion and the undo is no longer countable, so re-deriving would
-        // silently reverse nothing — the same rounding-drift trap undoActivity
-        // already avoids for XP by reading back lastUserEntry.xp.
-        //
-        // Entries written before this field existed carry no gritAwarded and are
-        // left alone: we don't know what they paid, and guessing is worse than
-        // skipping. Nothing is backfilled.
-
-        // Stamped only when something was actually granted, so a missing field
-        // and a zero grant read identically. Accumulates rather than assigns:
-        // one completion can pay more than one reversible award, and the stamp
-        // has to total what the entry is actually owed back.
-        function gritStampAward(entry, amount) {
-            if (!entry || !(amount > 0)) return;
-            entry.gritAwarded = (entry.gritAwarded || 0) + amount;
-        }
-
-        // gritApplyDelta books every negative delta as "spent". A reversal is not
-        // a spend — it un-earns something that should never have been paid — so
-        // the lifetime line ("N earned · M spent") has to be corrected, or a
-        // complete/undo loop reads as both earning and spending.
-        function gritReverseEarn(amount, reason, meta) {
+        // Both the amount and the day are read off the entry rather than
+        // re-derived, the same way undoActivity reads lastUserEntry.xp to avoid
+        // XP drift. An activity archived between the completion and the undo is
+        // no longer countable, so re-deriving would silently reverse nothing.
+        // Entries written before gritAwarded existed carry no stamp and keep
+        // their Grit — we don't know what they paid, and guessing is worse.
+        function gritOnRemoval(activity, entry) {
             var g = gritState();
-            if (!g || !(amount > 0)) return;
-            var before = g.balance;
-            gritApplyDelta(-amount, reason, meta || {});
-            var moved = before - g.balance;          // what the clamp actually let out
-            if (moved <= 0) return;
-            g.lifetimeSpent  = Math.max(0, (g.lifetimeSpent  || 0) - moved);
-            g.lifetimeEarned = Math.max(0, (g.lifetimeEarned || 0) - moved);
-        }
-
-        // Same-day undo. Called from undoActivity() with the exact entry it is
-        // about to splice out, before it leaves history.
-        function gritOnUndo(activity, entry) {
-            var g = gritState();
-            if (!g || !activity || !entry || !entry.gritAwarded) return;
+            if (!g || !activity || !entry) return;
             gritEnsureWeek();
-            gritReverseEarn(entry.gritAwarded, 'completion_undo',
-                { activityId: activity.id, activityTitle: activity.name });
-            // Mirror gritOnCompletion's numerator bump — but only if this
-            // completion actually landed in the week that is open now, so an
-            // undo across a week rollover can't dent the new week's ratio.
-            if (g.week && gritDayOf(entry.date) >= g.week.anchor) gritBumpNumerator(g, activity, -1);
-            gritRefreshUI();
-        }
 
-        // Deleting a completion inside the current week takes it back out of the
-        // numerator, mirroring the add, and reverses the drip it paid.
-        function gritOnRetroDelete(activity, dateStr, entry) {
-            var g = gritState();
-            if (!g || !activity || !g.week) return;
-            if (dateStr >= g.week.anchor) gritBumpNumerator(g, activity, -1);
-            if (entry && entry.gritAwarded) {
-                gritReverseEarn(entry.gritAwarded, 'completion_undo',
-                    { activityId: activity.id, activityTitle: activity.name, backdatedTo: dateStr });
+            // The completion fed the numerator only if it landed in the week
+            // that is open now, so an undo across a rollover can't dent the
+            // new week's ratio.
+            var day = gritDayOf(entry.date);
+            if (g.week && day >= g.week.anchor) gritBumpNumerator(g, activity, -1);
+
+            if (entry.gritAwarded) {
+                var meta = { activityId: activity.id, activityTitle: activity.name };
+                if (day !== gritDayOf(new Date())) meta.backdatedTo = day;
+                var before = g.balance;
+                gritApplyDelta(-entry.gritAwarded, 'completion_undo', meta);
+                // gritApplyDelta books every negative delta as a spend. This one
+                // un-earns, so move it back — otherwise a complete/undo loop
+                // reads as both an earn and a spend on the lifetime line.
+                var moved = before - g.balance;
+                g.lifetimeSpent  = Math.max(0, g.lifetimeSpent  - moved);
+                g.lifetimeEarned = Math.max(0, g.lifetimeEarned - moved);
             }
             gritRefreshUI();
         }

@@ -56,26 +56,22 @@ const db = getFirestore();
 // Deliberately not Secret Manager: that would need extra IAM roles and an
 // interactive CLI step, and this project deploys entirely from CI.
 //
-// Called on EVERY send path, not once at module scope. Two constraints meet
-// here and only this shape satisfies both:
+// Called on EVERY send path rather than once at module scope, because two
+// constraints meet here:
 //
-//   - Every 2nd-gen function runs in its own container and executes this
-//     file's top-level code on its own cold start. VAPID therefore cannot be
-//     installed inside one handler and relied on by the others: doing that
-//     left every trigger except the scheduled sender (gifts, pacts, versus,
-//     friend requests) calling webpush.sendNotification with no VAPID details
-//     at all, which the push service rejected with 401 — a status that is not
-//     in DEAD_SUBSCRIPTION_STATUS, so it never cleared and never retried.
-//
-//   - configureWebPush throws when a key is missing, and the Firebase CLI
-//     LOADS this module to discover the functions at deploy time, in a
-//     process that has no VAPID keys. At module scope that throw aborts the
-//     whole deploy with "Functions codebase could not be analyzed".
+//   - Each 2nd-gen function gets its own container and runs this file's
+//     top-level code on its own cold start, so configuring inside a single
+//     handler leaves every other trigger sending unauthenticated. That was
+//     the 401 bug: gifts, pacts, versus and friend requests all failed, and
+//     401 is not in DEAD_SUBSCRIPTION_STATUS, so nothing cleared or retried.
+//   - configureWebPush throws on a missing key, and the Firebase CLI loads
+//     this module to discover the functions at deploy time in a process with
+//     no VAPID keys. At module scope that throw aborts the deploy.
 //
 // lib/push.js guards the real work behind a module-level flag, so this is a
-// no-op after the first call in a container. There are exactly two senders —
-// pushToUser(), which every cross-account trigger goes through, and
-// sendDueReminders — and both call this first.
+// no-op after the first call in a container. Both senders — pushToUser(),
+// which every cross-account trigger goes through, and sendDueReminders —
+// call it first.
 function ensureWebPush() {
     configureWebPush({
         publicKey: process.env.VAPID_PUBLIC_KEY,
