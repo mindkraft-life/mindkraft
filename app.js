@@ -24072,7 +24072,11 @@
         // rational pick — the same payout for a fifth of the exposure.
         const BERSERK_SWING_PER_H = 0.10;  // of the session's XP, per hour chosen
         const BERSERK_DAMPENER    = 0.22;  // fraction of the above-baseline part that counts
-        const BERSERK_FLOOR_PER_H = 40;    // so a brand-new account still gets a real target
+        // So an account with nothing to average still gets a real target. It
+        // was 40, which is roughly double a genuinely active user's honest
+        // trailing pace — that made the new-account safety net the binding
+        // number for everyone, which is the opposite of a fallback.
+        const BERSERK_FLOOR_PER_H = 20;
 
         const HABIT_DEFAULT_DAYS  = 33;
         const HABIT_MIN_DAYS      = 7;
@@ -24619,6 +24623,27 @@
             return xp;
         }
 
+        // Real completions already logged on `dayStr` for one activity,
+        // penalties excluded. Used only at mode activation, to seed a counter
+        // from what the day already holds instead of starting it blind: work
+        // done at 9am is still work when the mode goes on at 6pm.
+        //
+        // completionHistory is kept in date order — recordCompletion appends
+        // and the retroactive path re-sorts — so the walk runs backwards and
+        // stops at the first entry older than the day asked for.
+        function modeCompletionsOnDay(activity, dayStr) {
+            var hist = (activity && activity.completionHistory) || [];
+            var n = 0;
+            for (var i = hist.length - 1; i >= 0; i--) {
+                var e = hist[i];
+                if (!e || !e.date) continue;
+                var ds = toLocalDateStr(new Date(e.date));
+                if (ds < dayStr) break;
+                if (ds === dayStr && !e.isPenalty) n++;
+            }
+            return n;
+        }
+
         // ══════════════════════════════════════════════════════════════════
         //  BERSERK
         // ══════════════════════════════════════════════════════════════════
@@ -24681,9 +24706,58 @@
             return total / days / MODE_WAKING_HOURS;
         }
 
+        // How far back real completion history goes, in whole days, capped at
+        // 28. modeAvgPerHour divides by whatever window it is handed, so asking
+        // it for a flat 28 days on an account that has only been logging for
+        // six put 22 zeroes in the numerator and crushed the baseline toward
+        // nothing — and with the baseline at nothing the floor was the answer
+        // for every user, not just new ones.
+        //
+        // This reads the same completionHistory every other feature reads. No
+        // new field, no launch-date constant, no separate notion of "history
+        // since Modes shipped". The scan stops the moment it finds anything
+        // older than the cap, because past that the answer is 28 either way.
+        // An account with no history at all also returns 28, which is moot:
+        // the numerator is zero whatever the divisor.
+        const BERSERK_BASELINE_MAX_DAYS = 28;
+
+        function berserkBaselineDays() {
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var capMs = today.getTime() - BERSERK_BASELINE_MAX_DAYS * 86400000;
+            var earliestMs = null;
+            try {
+                var dims = window.userData.dimensions || [];
+                for (var i = 0; i < dims.length; i++) {
+                    var paths = dims[i].paths || [];
+                    for (var j = 0; j < paths.length; j++) {
+                        var actsList = paths[j].activities || [];
+                        for (var k = 0; k < actsList.length; k++) {
+                            var hist = actsList[k].completionHistory || [];
+                            // In date order, so the first real entry is the
+                            // oldest this activity has.
+                            for (var h = 0; h < hist.length; h++) {
+                                var e = hist[h];
+                                if (!e || e.isPenalty || !e.date) continue;
+                                var t = new Date(e.date).getTime();
+                                if (!isFinite(t)) continue;
+                                if (t <= capMs) return BERSERK_BASELINE_MAX_DAYS;
+                                if (earliestMs === null || t < earliestMs) earliestMs = t;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {}
+            if (earliestMs === null) return BERSERK_BASELINE_MAX_DAYS;
+            var daysSince = Math.floor((today.getTime() - earliestMs) / 86400000);
+            return Math.max(1, Math.min(BERSERK_BASELINE_MAX_DAYS, daysSince));
+        }
+
         function berserkPerHourTarget() {
+            // The 7-day window stays fixed on purpose: an account younger than
+            // a week falls back to the floor, which is what the floor is for.
             var avg7 = modeAvgPerHour(7);
-            var base = modeAvgPerHour(28);          // the longer, calmer baseline
+            var base = modeAvgPerHour(berserkBaselineDays());   // the longer, calmer baseline
             var eff  = avg7 > base ? base + BERSERK_DAMPENER * (avg7 - base) : avg7;
             return Math.max(BERSERK_FLOOR_PER_H, Math.round(eff));
         }
@@ -24722,6 +24796,70 @@
             return modesXPBetween(a.startedAtMs, Math.min(modesNow(), a.endsAt));
         }
 
+        // THE GATE (spec §4.3). One target of "hit N XP" is cleared by a single
+        // tap on a heavily bonused activity, which is not a berserk session —
+        // it is a lucky streak multiplier. Two conditions close that:
+        //
+        //   1. as many completions as hours committed — cumulative across the
+        //      whole window, not one an hour. Three inside a 3-hour window is
+        //      three, back to back or spread out.
+        //   2. the target measured in baseXP, the raw pre-multiplier number on
+        //      the activity. A bonused completion still pays the user its full
+        //      bonused XP the instant they tap it; it just carries only its
+        //      base value toward clearing this.
+        //
+        // Both counters live on the active-mode object beside `hours` and
+        // `targetXP` and die with it, exactly as Focus Window's bonus pair does.
+        // A session started before this rule existed carries neither, and is
+        // judged by the rule it was entered under rather than by a gate it was
+        // never given the chance to fill.
+        function berserkTracked(a) { return !!a && typeof a.baseXpEarned === 'number'; }
+
+        function berserkGate(a) {
+            var reps   = a.completionsCount || 0;
+            var need   = Math.max(1, a.hours || 1);
+            var base   = a.baseXpEarned || 0;
+            var target = Math.max(1, a.targetXP || 0);
+            return {
+                reps: reps, need: need, base: base, target: target,
+                won: reps >= need && base >= target,
+                // The bar moves at the pace of whichever half is furthest
+                // behind. An average of the two would read as nearly-done with
+                // one condition untouched, which is not nearly done at all.
+                pct: Math.round(Math.min(reps / need, base / target) * 100)
+            };
+        }
+
+        // What the window asks for, as one line. Written once because the setup
+        // sheet renders it and the slider rewrites it on every step.
+        function berserkTargetLabel(hours) {
+            var h = Math.max(1, Number(hours) || 1);
+            return berserkTargetFor(h).toLocaleString() + ' base XP · ' + h +
+                   ' completion' + (h === 1 ? '' : 's');
+        }
+
+        // The card has to show the gate it was actually judged by, or a window
+        // that earned 200 bonused XP against a 60 base-XP target reads as a
+        // loss for no visible reason. Each condition gets its own tick or
+        // cross; the real earned figure stays, because that is what the payout
+        // is a percentage of.
+        function berserkResolutionLines(a, earned) {
+            if (!berserkTracked(a)) {
+                return [a.hours + '-hour window',
+                        'Target ' + a.targetXP.toLocaleString() + ' XP',
+                        'Earned ' + earned.toLocaleString() + ' XP'];
+            }
+            var g = berserkGate(a);
+            return [
+                a.hours + '-hour window',
+                { icon: g.reps >= g.need ? 'check' : 'x',
+                  text: g.reps + ' of ' + g.need + ' completions' },
+                { icon: g.base >= g.target ? 'check' : 'x',
+                  text: g.base.toLocaleString() + ' of ' + g.target.toLocaleString() + ' base XP' },
+                'Earned ' + earned.toLocaleString() + ' XP in the window'
+            ];
+        }
+
         // Resolution. Called from three places — the completion hook (a live
         // win pops immediately), the login/foreground pass (the window closed
         // while they were away), and the Modes page render. Guarded on
@@ -24731,7 +24869,9 @@
             if (!a || a.kind !== 'berserk' || a.resolved) return false;
             var earned = berserkEarned(a);
             var expired = modeBerserkExpired(a);
-            var won = earned >= a.targetXP;
+            // Payout is still real, fully bonused XP — that part was never the
+            // bug. Only what counts as clearing it changed.
+            var won = berserkTracked(a) ? berserkGate(a).won : earned >= a.targetXP;
             // `force` is the deliberate early end. Nothing else gets past
             // here: an unfinished window that nobody ended just keeps running.
             if (!won && !expired && !force) return false;
@@ -24752,11 +24892,7 @@
                 kind: 'berserk', outcome: won ? 'won' : 'lost',
                 title: won ? 'Berserk cleared' : 'Berserk fell short',
                 headline: won ? '+' + Math.abs(delta) + ' XP' : '−' + Math.abs(delta) + ' XP',
-                lines: [
-                    a.hours + '-hour window',
-                    'Target ' + a.targetXP.toLocaleString() + ' XP',
-                    'Earned ' + earned.toLocaleString() + ' XP'
-                ],
+                lines: berserkResolutionLines(a, earned),
                 note: won
                     ? 'You beat your own trailing average with hours to spare. The bonus is already in your total.'
                     : 'The window closed short of the target. ' + berserkSwingPct(a.hours) +
@@ -24922,8 +25058,9 @@
                     headline: '−' + a.wager + ' Grit',
                     lines: (a.items || []).map(function (it) {
                         var done = (it.count || 0) >= it.target;
-                        return (done ? phIcon('check', { lead: true }) : phIcon('x', { lead: true })) + it.activityName + ' — ' +
-                               Math.min(it.count || 0, it.target) + '/' + it.target;
+                        return { icon: done ? 'check' : 'x',
+                                 text: it.activityName + ' — ' +
+                                       Math.min(it.count || 0, it.target) + '/' + it.target };
                     }),
                     note: 'Stake mode is all or nothing. One target short is the same as none.'
                 };
@@ -25267,10 +25404,21 @@
                 }
             }
 
-            // ── Berserk: progress is XP, so nothing to count — just check ──
+            // ── Berserk: the two things the gate counts (spec §4.3) ───────
+            // baseXP, not the bonused figure that lands in completionHistory —
+            // the user is paid the bonus in full either way, it just does not
+            // buy them the target. A perform-negative activity costs XP, so it
+            // is not progress toward anything.
             if (a.kind === 'berserk' && !a.resolved) {
+                if (!activity.isNegative && !modeBerserkExpired(a)) {
+                    a.baseXpEarned     = (a.baseXpEarned     || 0) + (activity.baseXP || 0);
+                    a.completionsCount = (a.completionsCount || 0) + 1;
+                    dirty = true;
+                }
+                // Resolve if that was the completion that cleared it, then fall
+                // through: if the window is still running, the panel and the
+                // banner have new numbers to show.
                 berserkMaybeResolve().catch(function () {});
-                return;
             }
 
             // ── Pact: mirrored into the shared document ───────────────────
@@ -25305,6 +25453,16 @@
             if (a.kind === 'stake' && !a.resolved) {
                 var item = (a.items || []).filter(function (x) { return String(x.activityId) === id; })[0];
                 if (item) item.count = Math.max(0, (item.count || 0) - 1);
+            }
+            // The undo takes the XP out of history, so berserkEarned drops on
+            // its own — but the gate's two counters are stored, and a counter
+            // that only ever goes up turns complete-undo-complete into free
+            // progress. Same reversal every other counting mode does.
+            if (a.kind === 'berserk' && !a.resolved && berserkTracked(a)) {
+                if (!activity.isNegative) {
+                    a.baseXpEarned     = Math.max(0, a.baseXpEarned - (activity.baseXP || 0));
+                    a.completionsCount = Math.max(0, (a.completionsCount || 0) - 1);
+                }
             }
             if (a.kind === 'recovery') {
                 var entry = recoveryEntry(a, id);
@@ -26395,20 +26553,48 @@
             return html;
         }
 
+        // Two displays, deliberately not two bars (spec §4.5). The gate has an
+        // endpoint and gets the bar; the running payout has none — the user can
+        // keep logging all window — and a bar drawn for it would read as a
+        // second target rather than as the reward for clearing the first.
         function berserkPanelHtml(a) {
             var earned = berserkEarned(a);
+            var bonus  = Math.round(earned * berserkSwingFor(a.hours));
+            var chips =
+                '<div class="md-hrow-meta">' +
+                  '<span class="md-chip md-chip-hot" data-md-clock="berserk">' + modeCountdownLabel(a.endsAt) + '</span>' +
+                  '<span class="md-chip">' + a.hours + '-hour window</span>' +
+                  '<span class="md-chip">Win +' + berserkSwingPct(a.hours) +
+                    '% · Miss −' + berserkSwingPct(a.hours) + '%</span>' +
+                '</div>';
+            var ledger =
+                '<div class="md-stakes">' +
+                  '<div class="md-stake"><span class="md-stake-k">Earned this window</span>' +
+                    '<span class="md-stake-v">' + earned.toLocaleString() + ' XP</span></div>' +
+                  '<div class="md-stake md-stake-win"><span class="md-stake-k">If you clear the target</span>' +
+                    '<span class="md-stake-v">+' + bonus.toLocaleString() + ' XP</span></div>' +
+                '</div>';
+
+            if (!berserkTracked(a)) {
+                // Entered before the two-condition gate — it runs out its
+                // window on the rule it was started under, and says so.
+                return '<div class="md-metric md-metric-hot">' +
+                         '<span class="md-metric-n">' + earned.toLocaleString() + '</span>' +
+                         '<span class="md-metric-of">of ' + (a.targetXP || 0).toLocaleString() + ' XP</span>' +
+                       '</div>' +
+                       modeBarHtml(earned, a.targetXP, 'md-bar-hot') + chips + ledger +
+                       '<p class="md-note">Log anywhere in the app — the target fills either way.</p>';
+            }
+
+            var g = berserkGate(a);
             return '<div class="md-metric md-metric-hot">' +
-                     '<span class="md-metric-n">' + earned.toLocaleString() + '</span>' +
-                     '<span class="md-metric-of">of ' + a.targetXP.toLocaleString() + ' XP</span>' +
+                     '<span class="md-metric-n">' + g.reps + ' of ' + g.need + '</span>' +
+                     '<span class="md-metric-of">completions · ' + g.base.toLocaleString() +
+                       ' / ' + g.target.toLocaleString() + ' base XP</span>' +
                    '</div>' +
-                   modeBarHtml(earned, a.targetXP, 'md-bar-hot') +
-                   '<div class="md-hrow-meta">' +
-                     '<span class="md-chip md-chip-hot" data-md-clock="berserk">' + modeCountdownLabel(a.endsAt) + '</span>' +
-                     '<span class="md-chip">' + a.hours + '-hour window</span>' +
-                     '<span class="md-chip">Win +' + berserkSwingPct(a.hours) +
-                       '% · Miss −' + berserkSwingPct(a.hours) + '%</span>' +
-                   '</div>' +
-                   '<p class="md-note">Log anywhere in the app — the target fills either way.</p>';
+                   modeBarHtml(g.pct, 100, 'md-bar-hot') + chips + ledger +
+                   '<p class="md-note">Both halves have to land. Streak and combo bonuses pay you ' +
+                     'in full the moment you tap — they just do not count toward the target.</p>';
         }
 
         function recoveryPanelHtml(a) {
@@ -26729,8 +26915,13 @@
                        (left ? ' · ' + left + ' left today' : ' · done today');
             }
             if (a.kind === 'berserk') {
-                return berserkEarned(a).toLocaleString() + ' of ' + a.targetXP.toLocaleString() +
-                       ' XP · ' + modeCountdownLabel(a.endsAt);
+                if (!berserkTracked(a)) {
+                    return berserkEarned(a).toLocaleString() + ' of ' + a.targetXP.toLocaleString() +
+                           ' XP · ' + modeCountdownLabel(a.endsAt);
+                }
+                var g = berserkGate(a);
+                return g.reps + '/' + g.need + ' done · ' + g.base.toLocaleString() + '/' +
+                       g.target.toLocaleString() + ' XP · ' + modeCountdownLabel(a.endsAt);
             }
             if (a.kind === 'recovery') {
                 var climbing = (a.activities || []).filter(function (x) {
@@ -26957,7 +27148,21 @@
             if (kind === 'stake')     { _modeSetup.days = STAKE_MIN_DAYS; _modeSetup.wager = MODE_WAGER_MIN; stakeRenderSetup(); }
             if (kind === 'focus')     { _modeSetup.windowStart = '18:00'; _modeSetup.windowEnd = '20:00';
                                         _modeSetup.days = 14; focusRenderSetup(); }
-            if (kind === 'pact')      { _modeSetup.days = 7; _modeSetup.targets = {}; pactRenderSetup(); }
+            if (kind === 'pact')      {
+                _modeSetup.days = 7; _modeSetup.targets = {};
+                // Render first so the sheet is never blank, then fill the names
+                // in. The "Who with?" list reads _friendProfileCache, which is
+                // only warm if the Friends tab or a gift send happened to fill
+                // it this session — so on a fresh load every friend read
+                // "Adventurer". The re-render is guarded rather than
+                // unconditional: the fetch can land after the user has already
+                // tapped a name, and rebuilding the sheet then would throw them
+                // back to the step they just left.
+                pactRenderSetup();
+                giftEnsureFriendNames().then(function () {
+                    if (_modeSetup && _modeSetup.kind === 'pact' && !_modeSetup.partnerUid) pactRenderSetup();
+                }).catch(function () {});
+            }
         };
 
         // ── Shared controls ───────────────────────────────────────────────
@@ -27156,7 +27361,7 @@
             }
             if (s.kind === 'berserk') {
                 var t = berserkTargetFor(s.hours);
-                out.berserkTarget = t.toLocaleString() + ' XP';
+                out.berserkTarget = berserkTargetLabel(s.hours);
                 out.berserkWin    = '+' + Math.round(t * berserkSwingFor(s.hours)).toLocaleString() + ' XP';
                 out.berserkLose   = '−' + berserkSwingPct(s.hours) + '% of what you earned';
                 out.berserkLede   = berserkLedeText(s.hours);
@@ -27329,15 +27534,22 @@
             var s = _modeSetup;
             if (!s) return;
             var acts = modeEligibleActivities();
+            var today = modesToday();
             var habits = s.picks.map(function (id, i) {
                 var a = acts.filter(function (x) { return x.id === id; })[0] || {};
                 var d = s.details[i] || {};
+                // A habit counts one day, however many times the activity was
+                // logged in it — so today's work seeds at most 1. Stamping
+                // lastCompletedDay along with it is the other half of the same
+                // fact: without it the next completion today would count the
+                // same day twice.
+                var seeded = Math.min(1, modeCompletionsOnDay(gritFindActivity(id), today));
                 return {
                     activityId: id, activityName: a.name || 'Activity',
                     windowStart: d.windowStart, windowEnd: d.windowEnd,
                     anchor: String(d.anchor || '').trim(),
                     why: String(d.why || '').trim(),
-                    completions: 0, lastCompletedDay: null,
+                    completions: seeded, lastCompletedDay: seeded ? today : null,
                     milestonesShown: [], overlayDismissedDay: null
                 };
             });
@@ -27432,14 +27644,16 @@
                           loLabel: BERSERK_MIN_HOURS + ' hour', hiLabel: BERSERK_MAX_HOURS + ' hours' }) +
                       '<div class="md-stakes">' +
                         '<div class="md-stake"><span class="md-stake-k">Target</span>' +
-                          '<span class="md-stake-v" data-md-live="berserkTarget">' + target.toLocaleString() + ' XP</span></div>' +
+                          '<span class="md-stake-v" data-md-live="berserkTarget">' + modeEsc(berserkTargetLabel(s.hours)) + '</span></div>' +
                         '<div class="md-stake md-stake-win"><span class="md-stake-k">Clear it</span>' +
                           '<span class="md-stake-v" data-md-live="berserkWin">+' + swing.toLocaleString() + ' XP</span></div>' +
                         '<div class="md-stake md-stake-lose"><span class="md-stake-k">Miss it</span>' +
                           '<span class="md-stake-v" data-md-live="berserkLose">−' + pct +
                             '% of what you earned</span></div>' +
                       '</div>' +
-                      '<p class="md-hint md-hint-hot">The whole app turns red. It keeps running with the app closed.</p>' +
+                      '<p class="md-hint md-hint-hot">Base XP only — bonuses still pay you in full, ' +
+                        'they just do not buy the target. The whole app turns red, and it keeps ' +
+                        'running with the app closed.</p>' +
                     '</div>' +
                     modeSheetFoot('Go berserk', 'berserkStart()', !modeAffordable(cost), modeCostLine(cost));
             modeSheet(html);
@@ -27457,6 +27671,10 @@
                 endsAt: now + s.hours * 3600000,
                 targetXP: target,
                 perHourTarget: berserkPerHourTarget(),
+                // The gate's two counters, declared at activation rather than
+                // conjured on first completion: their presence is what marks a
+                // session as playing by the two-condition rule at all.
+                baseXpEarned: 0, completionsCount: 0,
                 resolved: false
             }, MODE_COST.berserk, 'mode_berserk');
             if (!res.ok) { showToast(res.message, 'red'); return; }
@@ -27608,11 +27826,17 @@
             var s = _modeSetup;
             if (!s || !s.picks.length) return;
             var items = [];
+            var today = modesToday();
             s.picks.forEach(function (id) {
                 var act = gritFindActivity(id);
                 if (!act) return;
+                var target = s.targets[id] || 1;
+                // Anything already logged today counts — the stake starts from
+                // where the day actually is, not from zero. Capped at the
+                // item's own target: a stake cannot open past its finish line.
                 items.push({ activityId: String(id), activityName: act.name || 'Activity',
-                             target: s.targets[id] || 1, count: 0 });
+                             target: target,
+                             count: Math.min(modeCompletionsOnDay(act, today), target) });
             });
             var total = items.reduce(function (n, it) { return n + it.target; }, 0);
             if (total < STAKE_MIN_TOTAL || s.days < STAKE_MIN_DAYS) {
@@ -27872,6 +28096,20 @@
         //  RESOLUTION CARD / MILESTONE / OVERLAY / CHECK-IN
         // ══════════════════════════════════════════════════════════════════
 
+        // A resolution line is either a plain string or { icon, text }. The
+        // two halves cannot go through the same escaper: the icon is markup and
+        // has to reach the DOM as markup, the text is user data and never does.
+        // Baking phIcon() into the string escaped the icon along with the name
+        // and printed the raw tag at the user.
+        function modeResLineHtml(l) {
+            if (l && typeof l === 'object') {
+                return '<div class="md-res-line">' +
+                         (l.icon ? phIcon(l.icon, { lead: true }) : '') +
+                         modeEsc(l.text) + '</div>';
+            }
+            return '<div class="md-res-line">' + modeEsc(l) + '</div>';
+        }
+
         function modesShowResolution(res, onClose) {
             if (!res) { if (onClose) onClose(); return; }
             var existing = document.getElementById('modeResolveCard');
@@ -27887,9 +28125,7 @@
                   '<div class="md-res-title">' + modeEsc(res.title) + '</div>' +
                   '<div class="md-res-headline">' + modeEsc(res.headline) + '</div>' +
                   (res.lines && res.lines.length
-                    ? '<div class="md-res-lines">' + res.lines.map(function (l) {
-                        return '<div class="md-res-line">' + modeEsc(l) + '</div>';
-                      }).join('') + '</div>'
+                    ? '<div class="md-res-lines">' + res.lines.map(modeResLineHtml).join('') + '</div>'
                     : '') +
                   (res.note ? '<p class="md-res-note">' + modeEsc(res.note) + '</p>' : '') +
                   '<button type="button" class="md-btn md-btn-primary md-btn-wide" id="modeResOk">Done</button>' +

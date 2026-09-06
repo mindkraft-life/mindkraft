@@ -55,6 +55,54 @@ both wagered modes actually ending when ended early; Habit's
 completions-vs-days-elapsed pair, its pause/resume rule and the seven-day
 expiry; the one-mode-at-a-time guard; and the rate card itself.
 
+## Berserk's baseline and its two-condition gate
+
+Two things about Berserk are invisible from the UI as numbers and are the whole
+reason the mode was rebuilt, so both are reached directly through the hooks
+rather than inferred from a target several inputs could have produced.
+
+**The baseline window** is however far back real `completionHistory` goes,
+capped at 28 days — not a flat 28. A flat 28 put a zero in the numerator for
+every day the account had not existed yet and still divided by 28, so the
+baseline collapsed and the floor became the binding number for *every* user,
+not just new ones. Covered: a week-old account baselining on its week and
+targeting its real pace rather than a diluted one, and an account with more
+than 28 days of history still baselining on 28 and getting exactly the number
+it got before the fix.
+
+**The gate** is two conditions, both of which must hold: as many completions as
+hours committed, and `baseXP` (not the bonused figure that lands in
+`completionHistory`) past the target. Covered: one heavily bonused completion
+failing to clear a three-hour target while still paying the user in full;
+enough base XP failing on its own when the completions floor is short; the bar
+filling at the pace of whichever half is behind; three completions clearing it
+and still paying 30% of the *real* bonused XP; an undo taking both counters
+back with it, because a counter that only rises makes complete-undo-complete
+free progress; and a session started before the gate existed still being judged
+on earned XP, since it never had the chance to fill counters it does not carry.
+
+The setup sheet has to name both halves before the Grit is spent, and the
+slider has to carry both with it — the label is built in one place for exactly
+that reason, so the two copies cannot drift.
+
+## Activating partway through a day
+
+A mode switched on at 6pm used to start counting from zero, as if the morning
+had not happened. Stake and Habit are the two modes that count completions from
+activation, so they are the two that seed from `modeCompletionsOnDay`. Covered:
+today's completions counting and yesterday's not, a penalty not counting as
+one, a stake opening with today already on the board but never past its own
+target, and a habit seeding at most one — with the day stamped, so the next
+completion today cannot count the same day twice.
+
+## The resolution card's icons
+
+Stake's lost lines used to bake `phIcon()`'s markup into the line string, and
+the card escapes every line — so the user read the raw `<i class="ph...">` tag
+instead of seeing a tick or a cross. A line is now either a plain string or
+`{icon, text}`, escaped apart. The test drives a real forfeit and asserts on
+the card's DOM: real `<i>` elements present, no markup anywhere in its text.
+
 ## Pact Mode's two document shapes
 
 Both sides of a Pact may name several activities, each with its own target.
@@ -71,6 +119,13 @@ under-logged one), "out of reach" judged per activity rather than on the totals
 an unreachable one — and the setup sheet driven for real from picking a partner
 through to the document it writes, because that sheet borrows Stake Mode's
 multi-select picker and had never been pointed at a Pact before.
+
+The sheet's friend picker reads `_friendProfileCache`, which only the Friends
+tab and a gift send ever filled — so on a fresh session every friend read
+"Adventurer". It fetches the names itself now and re-renders, and the re-render
+is guarded: the fetch can land after the user has already tapped a name, and
+rebuilding then would throw them back to the step they just left. Both
+directions are covered.
 
 Three things this cannot cover, because they are server-side: the Firestore
 rules (see `test/rules`), the mode-reminder copy decision (see
