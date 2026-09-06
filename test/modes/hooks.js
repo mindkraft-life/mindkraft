@@ -74,6 +74,30 @@ window.__mm = {
     modePactItems: function (a) { return JSON.parse(JSON.stringify(modePactItems(a))); },
     modePactHas: function (a, activityId) { return modePactHasActivity(a, activityId); },
 
+    // Berserk's baseline window and its two-condition gate. Neither is
+    // visible from the UI as a number, and both are the whole point of the
+    // redesign, so they are reached directly rather than inferred from a
+    // target that several inputs could have produced.
+    baselineDays: function () { return berserkBaselineDays(); },
+    // Null once the window has resolved and the mode is gone — a suite that
+    // asserts on the gate after an unexpected win should report a failure, not
+    // die inside the hook.
+    berserkGate: function () { var a = modesActive(); return a ? berserkGate(a) : null; },
+    berserkPanel: function () { return berserkPanelHtml(modesActive()); },
+
+    // What a mode activating today can see of today.
+    completionsOnDay: function (activityId, dayStr) {
+        return modeCompletionsOnDay(gritFindActivity(activityId), dayStr);
+    },
+
+    // The setup sheet's own state object, so a test can fill in the fields a
+    // real user fills in with sliders and text boxes and then press the
+    // sheet's own start button.
+    setup: function () { return _modeSetup; },
+
+    // Resolution cards queued while the app was in the background.
+    drain: function () { return modesDrainPending(); },
+
     openSetup: function (kind) {
         window.modesOpenSetup(kind);
         return !!document.getElementById('modeSheet');

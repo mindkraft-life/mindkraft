@@ -43,6 +43,9 @@ const out = await page.evaluate(async () => {
 
     const ME = 'uidMe', FRIEND = 'uidPal';
     const DAY = 86400000;
+    // The completion hook resolves a mode as a floating promise, and the pact
+    // sheet fills its friend names from one. Let the microtasks land.
+    const settle = () => new Promise(r => setTimeout(r, 60));
 
     function dayStr(offset) {
         const d = new Date(); d.setHours(0, 0, 0, 0);
@@ -126,6 +129,9 @@ const out = await page.evaluate(async () => {
         card.berserkSwingAt);
     ok('focus is well under a long berserk', card.focusMultiplier < card.berserkSwingAt[5] / 2,
         [card.focusMultiplier, card.berserkSwingAt[5]]);
+    // 40 was about double an active user's honest pace, which made the
+    // new-account fallback the binding number for everyone.
+    ok('the berserk floor is 20 an hour', card.berserkFloor === 20, card.berserkFloor);
     ok('all seven modes are present', card.kinds.length === 7, card.kinds);
 
     // ══ ONE MODE AT A TIME ════════════════════════════════════════════════
@@ -248,6 +254,35 @@ const out = await page.evaluate(async () => {
     ok('an empty account gets the floor, not a free win',
         window.__mm.berserkTarget(1) === card.berserkFloor, window.__mm.berserkTarget(1));
 
+    // The baseline window is however far back real history goes, capped at 28
+    // — not a flat 28 days. A fixed 28 put a zero in the numerator for every
+    // day the account had not existed yet and still divided by 28, which
+    // crushed the target to the floor for EVERY user, not just new ones.
+    (function () {
+        const hist = [];
+        for (let d = -7; d <= -1; d++) hist.push({ date: stamp(d, 0), xp: 1200 });
+        boot(1000, [act('a1', 'Run', { completionHistory: hist, completionCount: 7 })]);
+    })();
+    ok('a week-old account baselines on the week it has',
+        window.__mm.baselineDays() === 7, window.__mm.baselineDays());
+    // 1200 a day over 12 waking hours is 100/hr, and the 7-day average agrees
+    // with the baseline, so the dampener has nothing to damp. Diluted over a
+    // fixed 28 days the same history baselined at 25/hr and landed on 42.
+    ok('and targets its real pace, not one diluted by days it did not exist',
+        window.__mm.berserkTarget(1) === 100, window.__mm.berserkTarget(1));
+
+    // Past the cap nothing changes: an established account gets exactly the
+    // number it got before this fix.
+    (function () {
+        const hist = [];
+        for (let d = -60; d <= -1; d++) hist.push({ date: stamp(d, 0), xp: 1200 });
+        boot(1000, [act('a1', 'Run', { completionHistory: hist, completionCount: 60 })]);
+    })();
+    ok('history past 28 days still baselines on 28',
+        window.__mm.baselineDays() === 28, window.__mm.baselineDays());
+    ok('an established account\'s target is unchanged by the new baseline',
+        window.__mm.berserkTarget(1) === 100, window.__mm.berserkTarget(1));
+
     // A steady account: the target IS the trailing average.
     function seedSteady(perDay, days) {
         const hist = [];
@@ -312,6 +347,80 @@ const out = await page.evaluate(async () => {
         window.userData.totalXP === 5000 - 10, window.userData.totalXP);
     ok('a lost berserk ends the mode', window.__mm.active() === null);
     ok('berserk never touches Grit beyond its entry cost', G().balance === 960, G().balance);
+
+    // ── The two conditions (spec §4.3) ────────────────────────────────────
+    // A single "hit N XP" target is cleared by one tap on a streak-inflated
+    // activity, which is a lucky multiplier rather than a berserk session. The
+    // gate is now completions >= hours AND baseXP >= target, and the base
+    // figure is the raw pre-multiplier number on the activity — the user is
+    // still paid the bonused XP in full the moment they tap.
+    boot(1000, [act('a1', 'Run', { baseXP: 10, allowMultiplePerDay: true })]);
+    await window.__mm.activate('berserk', {
+        hours: 3, startedAtMs: Date.now() - 1000, endsAt: Date.now() + 3600000,
+        targetXP: 30, perHourTarget: 10, baseXpEarned: 0, completionsCount: 0,
+        resolved: false }, 40);
+
+    A().completionHistory.push({ date: new Date().toISOString(), xp: 300 });
+    window.__mm.onCompletion('a1');
+    await settle();
+    ok('one heavily bonused completion does not clear a three-hour target',
+        window.__mm.active() !== null, window.__mm.active());
+    ok('the bonus is not what counts toward the target',
+        (window.__mm.berserkGate() || {}).base === 10, window.__mm.berserkGate());
+    ok('but the user was still paid it in full',
+        window.__mm.berserkEarned() === 300, window.__mm.berserkEarned());
+
+    // Undo has to take the counters back with it, or complete-undo-complete
+    // is free progress — the same reversal every other counting mode does.
+    window.__mm.onUndo('a1');
+    ok('undoing a completion takes the gate counters back',
+        (window.__mm.berserkGate() || {}).reps === 0 &&
+        (window.__mm.berserkGate() || {}).base === 0,
+        window.__mm.berserkGate());
+    window.__mm.onCompletion('a1');
+    await settle();
+
+    for (let i = 0; i < 2; i++) {
+        A().completionHistory.push({ date: new Date().toISOString(), xp: 10 });
+        window.__mm.onCompletion('a1');
+    }
+    await settle();
+    ok('three completions and enough base XP clears it', window.__mm.active() === null,
+        window.__mm.active());
+    // 300 + 10 + 10 earned, swung at 10% an hour over three hours.
+    ok('and the payout is still 30% of the real, bonused XP',
+        window.userData.totalXP === 96, window.userData.totalXP);
+
+    // The completions half bites on its own: plenty of base XP, too few taps.
+    boot(1000, [act('a1', 'Run', { baseXP: 100, allowMultiplePerDay: true })]);
+    window.userData.totalXP = 5000; window.userData.currentXP = 5000;
+    await window.__mm.activate('berserk', {
+        hours: 3, startedAtMs: Date.now() - 7200000, endsAt: Date.now() + 3600000,
+        targetXP: 30, perHourTarget: 10, baseXpEarned: 0, completionsCount: 0,
+        resolved: false }, 40);
+    A().completionHistory.push({ date: new Date().toISOString(), xp: 100 });
+    window.__mm.onCompletion('a1');
+    await settle();
+    ok('base XP alone does not clear it — the completions floor still stands',
+        window.__mm.active() !== null && (window.__mm.berserkGate() || {}).base >= 30,
+        window.__mm.berserkGate());
+    ok('and the bar fills at the pace of whichever half is behind',
+        (window.__mm.berserkGate() || {}).pct === 33, window.__mm.berserkGate());
+    await window.__mm.resolveBerserk(true);
+
+    // A session started before the gate existed carries neither counter. It
+    // finishes out under the rule it was entered under rather than being
+    // judged by a gate it was never given the chance to fill.
+    boot(1000, [act('a1', 'Run')]);
+    const beforeLegacy = window.userData.totalXP;
+    await window.__mm.activate('berserk', {
+        hours: 1, startedAtMs: Date.now() - 1000, endsAt: Date.now() + 3600000,
+        targetXP: 100, perHourTarget: 100, resolved: false }, 40);
+    A().completionHistory.push({ date: new Date().toISOString(), xp: 200 });
+    await window.__mm.resolveBerserk();
+    ok('a session predating the gate is still judged on earned XP',
+        window.__mm.active() === null && window.userData.totalXP === beforeLegacy + 20,
+        window.userData.totalXP);
 
     // ══ FOCUS WINDOW ══════════════════════════════════════════════════════
     boot(1000, [act('a1', 'Run'), act('a2', 'Scroll', { isNegative: true })]);
@@ -538,6 +647,128 @@ const out = await page.evaluate(async () => {
         return window.__mm.modePactHas(a, 'a2') && !window.__mm.modePactHas(a, 'zz');
     })());
 
+    // ── The sheet names both halves before the Grit is spent ──────────────
+    boot(1000, [act('a1', 'Run')]);
+    window.__mm.openSetup('berserk');
+    (function () {
+        const sheetTxt = () => document.getElementById('modeSheet').textContent;
+        ok('the setup sheet names the completions floor, not just the XP',
+            /40 base XP · 2 completions/.test(sheetTxt()), sheetTxt());
+        // The slider rewrites that line without rebuilding the sheet, so the
+        // label has to be built in one place or the two copies drift.
+        window.modeSlide('hours', 4, 1, 5);
+        ok('and the slider carries both halves with it',
+            /80 base XP · 4 completions/.test(sheetTxt()), sheetTxt());
+    })();
+    window.__mm.closeSetup();
+
+    // ══ ACTIVATING PARTWAY THROUGH A DAY ══════════════════════════════════
+    //
+    // A mode switched on at 6pm used to start counting from zero, as if the
+    // morning had not happened. Stake and Habit are the two that count
+    // completions from activation, so they are the two that seed.
+    function seededToday() {
+        return act('a1', 'Run', {
+            allowMultiplePerDay: true, completionCount: 2,
+            completionHistory: [{ date: stamp(-1), xp: 10 },
+                                { date: stamp(0, 9),  xp: 10 },
+                                { date: stamp(0, 10), xp: 10 }]
+        });
+    }
+
+    boot(1000, [seededToday()]);
+    ok('today\'s completions are countable, yesterday\'s are not',
+        window.__mm.completionsOnDay('a1', dayStr(0)) === 2 &&
+        window.__mm.completionsOnDay('a1', dayStr(-1)) === 1,
+        [window.__mm.completionsOnDay('a1', dayStr(0)),
+         window.__mm.completionsOnDay('a1', dayStr(-1))]);
+    ok('a penalty is not a completion', (function () {
+        A().completionHistory.push({ date: stamp(0, 11), xp: -10, isPenalty: true });
+        const n = window.__mm.completionsOnDay('a1', dayStr(0));
+        A().completionHistory.pop();
+        return n === 2;
+    })());
+
+    window.__mm.openSetup('stake');
+    window.modeTogglePick('a1', 3);
+    (function () {
+        const s = window.__mm.setup();
+        s.targets = { a1: 5 }; s.days = 5; s.wager = 25;
+    })();
+    await window.stakeStart();
+    ok('a stake opened today already counts today',
+        ((window.__mm.active() || {}).items || [{}])[0].count === 2, window.__mm.active());
+    await window.__mm.end('ended');
+
+    // Capped at the item's own target — a stake cannot open past its finish.
+    boot(1000, [seededToday()]);
+    window.__mm.openSetup('stake');
+    window.modeTogglePick('a1', 3);
+    (function () {
+        const s = window.__mm.setup();
+        s.targets = { a1: 1 }; s.days = 5; s.wager = 25;
+    })();
+    (function () {
+        // STAKE_MIN_TOTAL is 5, so a one-completion target needs company to be
+        // a legal stake at all — a second activity carries the total.
+        window.userData.dimensions[0].paths[0].activities.push(act('a2', 'Read'));
+        window.modeTogglePick('a2', 3);
+        window.__mm.setup().targets = { a1: 1, a2: 4 };
+    })();
+    await window.stakeStart();
+    ok('a seeded count never opens past its own target',
+        ((window.__mm.active() || {}).items || [{}])[0].count === 1, window.__mm.active());
+    await window.__mm.end('ended');
+
+    boot(1000, [seededToday()]);
+    window.__mm.openSetup('habit');
+    window.modeTogglePick('a1', 3);
+    (function () {
+        const s = window.__mm.setup();
+        s.details = [{ windowStart: '18:00', windowEnd: '20:00',
+                       anchor: 'after work', why: 'it matters' }];
+        s.targetDays = 33;
+    })();
+    await window.habitStart();
+    ok('a habit started today counts today — once, however many times it was logged',
+        ((window.__mm.active() || {}).habits || [{}])[0].completions === 1,
+        window.__mm.active());
+    // The other half of the same fact: without the day stamp the next
+    // completion today would count the same day a second time.
+    ok('and the day is stamped, so today cannot count twice', (function () {
+        const h = () => ((window.__mm.active() || {}).habits || [{}])[0];
+        const stamped = h().lastCompletedDay === dayStr(0);
+        window.__mm.onCompletion('a1');
+        return stamped && h().completions === 1;
+    })(), window.__mm.active());
+    await window.__mm.end('ended');
+
+    // ══ THE RESOLUTION CARD'S ICONS ═══════════════════════════════════════
+    //
+    // Stake's lost lines used to bake phIcon()'s markup into the line string,
+    // and the card escapes every line — so the user read the tag instead of
+    // seeing the glyph. The icon is data on the line now, escaped apart from
+    // the text.
+    boot(1000, [act('a1', 'Run'), act('a2', 'Read')]);
+    await window.__mm.activate('stake', {
+        items: [{ activityId: 'a1', activityName: 'Run',  target: 2, count: 2 },
+                { activityId: 'a2', activityName: 'Read', target: 2, count: 0 }],
+        days: 5, wager: 25, resolved: false }, 25);
+    await window.__mm.resolveStake(true);
+    if (!document.getElementById('modeResolveCard')) window.__mm.drain();
+    await settle();
+    (function () {
+        const card = document.getElementById('modeResolveCard');
+        ok('the lost stake card renders real icons', !!card &&
+            !!card.querySelector('.md-res-line i.ph-check') &&
+            !!card.querySelector('.md-res-line i.ph-x'));
+        ok('and prints no markup at the user',
+            !!card && !/<i|ph-bold|class=/.test(card.textContent), card && card.textContent);
+        ok('the activity names are still there and still escaped',
+            !!card && /Run/.test(card.textContent) && /Read/.test(card.textContent));
+        if (card) card.remove();
+    })();
+
     // ══ PACT: THE SETUP SHEET ═════════════════════════════════════════════
     //
     // Driven for real rather than asserted on, because the sheet is what turns
@@ -601,6 +832,29 @@ const out = await page.evaluate(async () => {
     ok('the partner is invited with a full summary of it',
         !!sent && window.__mm.pactSummary(sent, ME) === 'Run × 3, Read × 5, Stretch × 10',
         sent && window.__mm.pactSummary(sent, ME));
+    window.__mm.closeSetup();
+
+    // The friend picker reads _friendProfileCache, which only the Friends tab
+    // and a gift send ever filled — so on a fresh session every friend was
+    // "Adventurer". The sheet now fetches the names itself and re-renders.
+    boot(1000, [act('a1', 'Run')]);
+    window._friendProfileCache = {};
+    window.__store.set('publicProfiles/' + FRIEND, { displayName: 'Pal', level: 9 });
+    window.__mm.openSetup('pact');
+    ok('the picker is on screen before the names land', /Who with\?/.test(sheetText()));
+    await settle();
+    ok('and fills in the real name rather than "Adventurer"',
+        /Pal/.test(sheetText()) && !/Adventurer/.test(sheetText()), sheetText());
+
+    // The fetch can land after the user has already tapped a name. Re-rendering
+    // then would throw them back to the step they just left.
+    window._friendProfileCache = {};
+    window.__mm.openSetup('pact');
+    await window.pactPickPartner(FRIEND);
+    await settle();
+    ok('a name picked before the fetch lands is not undone',
+        window.__mm.setup().partnerUid === FRIEND && /Your activities/.test(sheetText()),
+        window.__mm.setup().partnerUid);
     window.__mm.closeSetup();
 
     return log;

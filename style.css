@@ -15641,6 +15641,11 @@ body.mk-ledger-collapsed .mk-ledger-band:not(.active) {
 
 .md-note { font: 500 11.5px/1.62 Inter, sans-serif; color: var(--color-text-secondary); margin: 0; }
 
+/* The outcome table is the setup sheet's, reused in Berserk's live panel for
+   the running payout. The panel is a flex column with its own gap, so the
+   sheet's top margin would double it. */
+.md-live-body .md-stakes { margin: 0; }
+
 /* ── Pact ── */
 .md-pact { display: flex; align-items: stretch; gap: 10px; }
 .md-pact-side {
