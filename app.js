@@ -363,28 +363,34 @@
             return code;
         }
 
-        // XP earned Mon-Sun of the current week (ISO Mon start)
-        // Week runs Sun–Sat (matching activity reset cadence)
+        // Analytics' "This Week" window — Monday 00:00 local (spec §8).
+        //
+        // This used to be Sunday-anchored, the last boundary in the app that
+        // still was: the leaderboard week, the Grit week and the custom
+        // day-pinned cycle all start on Monday. Two different "weeks" meant the
+        // Analytics tile and the leaderboard could disagree about the same
+        // completion by a whole day, which is not a difference anyone could
+        // explain. The math below is getLeaderboardWeekStartStr()'s, so there
+        // is now exactly one weekly boundary in the app.
+        //
+        // Local day-of-week throughout, never toISOString(): UTC would shift
+        // the boundary a day for UTC+ users (e.g. India UTC+5:30).
         function getWeekStartStr() {
-            // Use local-time day-of-week so the cycle always resets at midnight Sunday
-            // in the user's own timezone. Previously used toISOString() (UTC) which caused
-            // the week to appear to reset on Saturday for UTC+ users (e.g. India UTC+5:30).
-            const now = new Date();
-            const sunday = new Date(now);
-            sunday.setHours(0, 0, 0, 0);
-            sunday.setDate(sunday.getDate() - now.getDay()); // getDay()==0 on Sun → no change
-            const y = sunday.getFullYear();
-            const m = String(sunday.getMonth() + 1).padStart(2, '0');
-            const d = String(sunday.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - ((d.getDay() + 6) % 7));   // 0=Sun → back 6
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${dd}`;
         }
 
         // The LEADERBOARD week — Monday 00:00 local, the same anchor the Grit
-        // week uses (gifting spec §8.2, invariant 14). Deliberately not
-        // getWeekStartStr(): that one is Sunday-anchored and belongs to
-        // Analytics, which has its own long-standing cadence. Every leaderboard
+        // week uses (gifting spec §8.2, invariant 14). Every leaderboard
         // surface — ranking, the published snapshot, the payout — reads this
-        // one, so there is exactly one boundary anywhere near a payout.
+        // one. Analytics' getWeekStartStr() now computes the same boundary
+        // (spec §8); the two are kept as separate functions only because they
+        // answer for different surfaces, not because they can differ.
         function getLeaderboardWeekStartStr() {
             const d = new Date();
             d.setHours(0, 0, 0, 0);
@@ -395,6 +401,41 @@
             return `${y}-${m}-${dd}`;
         }
         window.getLeaderboardWeekStartStr = getLeaderboardWeekStartStr;
+
+        // ── xpTodayGhost, summed over a window (spec §6) ─────────────────
+        // XP that never hangs off a completionHistory row — a Berserk swing, a
+        // Focus Window bonus, the XP of an activity deleted mid-day — is
+        // recorded per local day in userData.xpTodayGhost. Every read that
+        // walks history therefore misses it, which is why "XP Today" already
+        // adds it in by hand.
+        //
+        // Every window wider than today needs the same treatment, or a week
+        // that contained a won Berserk reports less XP than the user was
+        // actually paid. This is the one place that sums the bucket, so the
+        // four windows below cannot drift apart in how they read it.
+        //
+        // `fromKey` and `toKey` are inclusive local YYYY-MM-DD strings; a null
+        // bound is open. The keys are already that format, so the comparison
+        // is plain string ordering.
+        function ghostXPBetween(fromKey, toKey) {
+            var ghost = (window.userData && window.userData.xpTodayGhost) || {};
+            var sum = 0;
+            for (var k in ghost) {
+                if (!Object.prototype.hasOwnProperty.call(ghost, k)) continue;
+                if (fromKey && k < fromKey) continue;
+                if (toKey && k > toKey) continue;
+                var v = ghost[k];
+                if (typeof v === 'number' && isFinite(v)) sum += v;
+            }
+            return sum;
+        }
+        function ghostXPOnDay(dayKey) { return ghostXPBetween(dayKey, dayKey); }
+
+        // How long a ghost entry is kept. The widest window that reads the
+        // bucket is Berserk's baseline (BERSERK_BASELINE_MAX_DAYS = 28), so
+        // this is that plus a week of slack — about five weeks of one small
+        // number per day, which is nothing next to completionHistory.
+        const GHOST_XP_RETENTION_DAYS = 35;
 
         function computeWeeklyXP() {
             const weekStartStr = getLeaderboardWeekStartStr();
@@ -408,7 +449,9 @@
                     })
                 )
             );
-            return xp;
+            // Mode bonuses earned inside this week (spec §6). Feeds the
+            // leaderboard's "This Week" and, through it, the weekly Grit payout.
+            return xp + ghostXPBetween(weekStartStr, null);
         }
 
         // Leaderboard week label = the ISO date of this week's Monday. Used as
@@ -445,10 +488,20 @@
                     if (!e.isPenalty && e.date && toLocalDateStr(new Date(e.date)) === yStr) xp += (e.xp || 0);
                 });
             });
+            // Spec §6 — yesterday's mode bonuses, and only yesterday's: this
+            // window is a single day and the rate has to mean the same thing
+            // as the day's XP total.
+            xp += ghostXPOnDay(yStr);
             return Math.round((xp / 12) * 10) / 10;
         }
 
         // Weekly XP scoped to a given activities array (for analytics filters).
+        //
+        // Mode bonus XP (Berserk, Focus Window) belongs to no dimension, path
+        // or activity — it is paid against the user's own ledger. So it is
+        // added to the single unfiltered "This Week" total and to nothing else
+        // (spec §6): showing it under a scope it does not belong to would make
+        // the filtered numbers sum to more than the whole.
         function computeWeeklyXPFromActivities(activities) {
             const weekStartStr = getWeekStartStr();
             let xp = 0;
@@ -457,6 +510,8 @@
                     if (!e.isPenalty && e.date && toLocalDateStr(new Date(e.date)) >= weekStartStr) xp += (e.xp || 0);
                 });
             });
+            const unscoped = !window.analyticsState || window.analyticsState.view === 'all';
+            if (unscoped) xp += ghostXPBetween(weekStartStr, null);
             return xp;
         }
 
@@ -1721,9 +1776,23 @@
             let xpToday = 0;
             let longestStreak = 0;
 
-            // Prune ghost entries older than today (keeps userData tidy)
+            // Prune ghost entries that have aged out of every window that
+            // reads them (keeps userData tidy).
+            //
+            // This used to drop everything older than today, which was correct
+            // while "XP Today" was the only reader. Spec §6 gave the bucket
+            // four more readers — the weekly totals, XP/hour for yesterday and
+            // Berserk's own baseline — and the widest of those looks back
+            // BERSERK_BASELINE_MAX_DAYS. Pruning at midnight would have left
+            // every one of them reading an empty bucket, so the retention is
+            // now the widest window plus a week of slack, and the cap on the
+            // bucket's size is that horizon rather than a single day.
             if (data.xpTodayGhost) {
-                Object.keys(data.xpTodayGhost).forEach(k => { if (k < todayKey) delete data.xpTodayGhost[k]; });
+                const ghostFloorKey = toLocalDateStr(
+                    new Date(Date.now() - GHOST_XP_RETENTION_DAYS * 86400000));
+                Object.keys(data.xpTodayGhost).forEach(k => {
+                    if (k < ghostFloorKey) delete data.xpTodayGhost[k];
+                });
             }
 
             (data.dimensions || []).forEach(dim => {
@@ -4802,6 +4871,11 @@
             return n;
         }
 
+        // The fortnight boundary for `biweekly` activities: Monday 6 January
+        // 2025, local midnight (spec §9). Both places that compute a biweekly
+        // window read it from here so the two can never drift apart again.
+        const BIWEEKLY_ANCHOR = '2025-01-06T00:00:00';
+
         function isCompletedToday(activity) {
             if (activity.frequency === 'custom') {
                 // Fully completed if cycleCompletions >= timesPerCycle in current window
@@ -4820,16 +4894,19 @@
             } else if (activity.frequency === 'occasional') {
                 return lastCompleted.toDateString() === today.toDateString();
             } else if (activity.frequency === 'weekly') {
-                // Reset every Sunday (calendar week boundary) — compare midnight-to-midnight
+                // Reset every Monday (spec §9) — compare midnight-to-midnight.
+                // This logic is deliberately duplicated rather than delegated to
+                // getCycleWindowStart(); both carry the anchor, so both moved.
                 const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
                 const dow = todayMidnight.getDay(); // 0=Sun
-                const weekStart = new Date(todayMidnight); weekStart.setDate(todayMidnight.getDate() - dow);
+                const weekStart = new Date(todayMidnight);
+                weekStart.setDate(todayMidnight.getDate() - ((dow + 6) % 7));   // 0=Sun → back 6
                 // Normalise lastCompleted to local midnight to avoid UTC timezone shifts
                 const lcMidnight = new Date(lastCompleted); lcMidnight.setHours(0,0,0,0);
                 return lcMidnight >= weekStart;
             } else if (activity.frequency === 'biweekly') {
-                // Every other Sunday, anchored to Jan 5 2025
-                const biAnchor = new Date('2025-01-05T00:00:00');
+                // Every other Monday, anchored to Mon 6 Jan 2025 (spec §9)
+                const biAnchor = new Date(BIWEEKLY_ANCHOR);
                 const todayMidnight2 = new Date(); todayMidnight2.setHours(0,0,0,0);
                 const weeksSinceAnchor = Math.floor((todayMidnight2 - biAnchor) / (7 * 86400000));
                 const cycleStart = new Date(biAnchor.getTime() + (weeksSinceAnchor - (weeksSinceAnchor % 2)) * 7 * 86400000);
@@ -4906,9 +4983,11 @@
         //
         // SHIELD RULES:
         //   3 shields per streak, +1 at each of 25/50/75/100 days, +1 per
-        //   shield applied from the Grit pool -- summed, capped at 10.
-        //   Each missed closed window costs 1 shield. The streak survives
-        //   until they run out; the next unshielded miss → streak=0.
+        //   shield applied from the Grit pool. The cap of 10 is on shields
+        //   CURRENTLY HELD -- capacity minus what this streak has already
+        //   consumed -- and never on the lifetime total earned or applied
+        //   (spec §4). Each missed closed window costs 1 shield. The streak
+        //   survives until they run out; the next unshielded miss → streak=0.
         //   Shields reset automatically on a new streak -- back to the floor,
         //   which still includes every applied shield.
         //
@@ -4919,7 +4998,7 @@
 
         const BASE_SHIELDS      = 3;
         const SHIELD_MILESTONES = [25, 50, 75, 100];
-        const SHIELD_ABS_CAP    = 10; // 3 base + 4 milestone bonuses + applied, summed
+        const SHIELD_ABS_CAP    = 10; // most shields an activity may HOLD unused at once
 
         // == Applied shields (from the Grit pool) =========================
         // A pooled shield is applied by APPENDING AN EVENT, never by mutating
@@ -4946,15 +5025,41 @@
             return n;
         }
 
+        // == The cap, and what it is a cap ON (spec §4) ===================
+        // SHIELD_ABS_CAP limits shields HELD -- earned and not yet spent on a
+        // missed window. It is not a lifetime ceiling: an activity that has
+        // earned and burned 7 shields over its life may go on earning and
+        // holding another 10 at a time, indefinitely.
+        //
+        // Every stored shield number in the app is a CAPACITY
+        // (activity.shieldCapUsed), and what the user holds is that capacity
+        // minus activity.shieldsConsumed. So the cap is never written as
+        // `min(capacity, 10)` -- that would make it a lifetime ceiling the
+        // moment consumption started. It is written as `min(capacity,
+        // consumed + 10)`, which is exactly "held may not exceed 10" and
+        // collapses to the old `min(capacity, 10)` at a fresh streak, where
+        // nothing has been consumed yet.
+        function shieldCapLimit(consumed) {
+            return SHIELD_ABS_CAP + Math.max(0, consumed || 0);
+        }
+
         // The floor every shield walk starts from: base capacity plus whatever
-        // has been applied, clamped so a walk can never begin above the cap.
+        // has been applied, held back only by the cap above.
         // This is what replaced the bare BASE_SHIELDS at all twelve points in
         // the two folds -- including the resets, so a broken streak restarts
         // with its applied shields still in hand. Because the count comes from
         // the activity's own events rather than from the streak walk, no
         // retroactive completion can recompute an applied shield away.
-        function shieldFloorFor(activity) {
-            return Math.min(SHIELD_ABS_CAP, BASE_SHIELDS + appliedShieldCount(activity));
+        //
+        // `consumed` is how many shields the run this floor belongs to has
+        // already spent. Callers starting a genuinely fresh run pass 0
+        // explicitly; omitting it reads the activity's live count, which is
+        // what a re-derivation of the CURRENT run wants.
+        function shieldFloorFor(activity, consumed) {
+            var used = (consumed == null)
+                ? ((activity && activity.shieldsConsumed) || 0)
+                : consumed;
+            return Math.min(shieldCapLimit(used), BASE_SHIELDS + appliedShieldCount(activity));
         }
 
         // Capacity as it stands right now, without re-walking history: the
@@ -4962,6 +5067,7 @@
         // Mirrors what the walks produce, so applying a shield can refresh the
         // displayed count immediately instead of waiting for the next login.
         function shieldCapNow(activity) {
+            var consumed = (activity && activity.shieldsConsumed) || 0;
             var cap = shieldFloorFor(activity);
             var streak = activity.streak || 0;
             if (streak > 0) {
@@ -4969,11 +5075,19 @@
                     if (streak >= SHIELD_MILESTONES[i]) cap += 1;
                 }
             }
-            return Math.min(SHIELD_ABS_CAP, cap);
+            return Math.min(shieldCapLimit(consumed), cap);
         }
 
         function getShieldCap(activity) {
             return activity.shieldCapUsed || shieldFloorFor(activity);
+        }
+
+        // Shields in hand right now — the number the cap of 10 is actually
+        // about, and the number every "is this activity full?" test reads.
+        function shieldsHeldNow(activity) {
+            if (!activity) return 0;
+            return Math.max(0, Math.min(SHIELD_ABS_CAP,
+                shieldCapNow(activity) - ((activity.shieldsConsumed) || 0)));
         }
 
         // _getStreakShieldWindow removed. Shield computation is now fully owned
@@ -5146,7 +5260,8 @@
                     // immediately correct. processStreakSystem re-derives the same
                     // value from history on next login, so they stay in sync.
                     if (SHIELD_MILESTONES.includes(newStreak)) {
-                        activity.shieldCapUsed = Math.min(SHIELD_ABS_CAP,
+                        activity.shieldCapUsed = Math.min(
+                            shieldCapLimit(activity.shieldsConsumed),
                             (activity.shieldCapUsed || shieldFloorFor(activity)) + 1);
                     }
                 }
@@ -5469,8 +5584,18 @@
 
             await applyRetroactiveRecalculation(foundActivity, foundDi, xp);
             try { gritOnRetroComplete(foundActivity, dateStr, newEntry); } catch (e) { console.warn('Grit retro hook failed', e); }
+            // Quest progress (spec §3). A completion logged through the history
+            // editor is a completion: it has to move a linked quest leaf's
+            // completedCount exactly as the live path does from
+            // completeActivity(). Same call, same guard, same downstream
+            // settleAll() — so a quest that seals on this rep pays its bonus.
+            try { if (typeof updateQuestProgress === 'function') updateQuestProgress(foundActivity.id); } catch (e) { console.warn('Quest retro progress failed', e); }
             if (typeof renderHistoryEdit === 'function') renderHistoryEdit();
             renderActivityHistory(true);
+            // applyRetroactiveRecalculation() saved before the two hooks above
+            // ran, so the quest counters and the Grit balance they moved are
+            // still only in memory. Same trailing save completeActivity() does.
+            debouncedSaveUserData();
             showToast(`Logged ${foundActivity.name} for ${dateStr} (+${xp} XP)`, 'blue', null, 'check');
         };
 
@@ -5529,9 +5654,14 @@
             // amount granted and the day, so nothing has to be re-derived.
             if (!isPenaltyEntry) {
                 try { gritOnRemoval(foundActivity, deletedEntry); } catch (e) { console.warn('Grit retro-delete hook failed', e); }
+                // The decrement half of the pair above (spec §3), matching the
+                // one undoActivity() already runs. Penalty rows never moved a
+                // quest leaf forward, so they must not move one back either.
+                try { if (typeof undoQuestProgress === 'function') undoQuestProgress(foundActivity.id); } catch (e) { console.warn('Quest retro undo failed', e); }
             }
             if (typeof renderHistoryEdit === 'function') renderHistoryEdit();
             renderActivityHistory(true);
+            debouncedSaveUserData();   // see the matching note in retroactiveComplete
             showToast(`Removed entry for ${entryDateStr}`, 'blue', null, 'arrow-u-up-left');
         };
 
@@ -7680,6 +7810,57 @@
                 });
             });
 
+            // ── XP that belongs to no activity (spec §7) ───────────────
+            // Berserk swings, Focus Window bonuses and quest cycle bonuses are
+            // paid against the user's own XP ledger, so nothing in
+            // completionHistory records them and this list used to be silent
+            // about XP the user was plainly paid.
+            //
+            // They are merged exactly as deletedActivityLog is above, with one
+            // difference the renderer keys off: activityId stays null, so no
+            // delete button is offered. There is nothing to delete — these are
+            // records of a resolved mode or a sealed cycle, not completions.
+            (window.userData.modeXPLog || []).forEach(entry => {
+                if (!entry || !entry.at || !entry.xp) return;
+                const when = new Date(entry.at);
+                if (isNaN(when.getTime())) return;
+                rawLog.push({
+                    date:       when,
+                    dateISO:    toLocalDateStr(when),
+                    xp:         entry.xp || 0,
+                    isPenalty:  false,
+                    actName:    entry.label || 'Mode',
+                    activityId: null,
+                    entryTs:    entry.at,
+                    dimName:    '',
+                    pathName:   '',
+                    isLedgerOnly: true,
+                });
+            });
+
+            // Quest cycle bonuses. Unlike the two modes above these need no new
+            // store: cycleHistory has carried bonusXp since quests shipped, so
+            // merging it here surfaces past cycles as well as future ones.
+            ((window.userData || {}).projects || []).forEach(p => {
+                (p.cycleHistory || []).forEach(c => {
+                    if (!c || !c.bonusXp || !c.completedAt) return;
+                    const when = new Date(c.completedAt);
+                    if (isNaN(when.getTime())) return;
+                    rawLog.push({
+                        date:       when,
+                        dateISO:    toLocalDateStr(when),
+                        xp:         c.bonusXp || 0,
+                        isPenalty:  false,
+                        actName:    'Quest: ' + (p.name || 'Quest'),
+                        activityId: null,
+                        entryTs:    c.completedAt,
+                        dimName:    '',
+                        pathName:   '',
+                        isLedgerOnly: true,
+                    });
+                });
+            });
+
             // Newest first
             rawLog.sort((a, b) => b.date - a.date);
 
@@ -7748,9 +7929,14 @@
                 const deletedTag = e.isDeleted
                     ? `<span class="ah-tag" style="background:rgba(160,100,50,0.13);color:#b8804a;border-color:rgba(160,100,50,0.22);">† deleted</span>`
                     : '';
-                const tag = !e.isDeleted && e.isPenalty
-                    ? `<span class="ah-tag ah-tag-penalty"><i class="ph-bold ph-lightning mk-ico-lead"></i>auto-penalty</span>`
-                    : (!e.isDeleted && !isPos ? `<span class="ah-tag ah-tag-negative">−habit</span>` : '');
+                // A merged ledger row carries a label and an amount and
+                // nothing else (spec §7). In particular a negative Berserk
+                // swing must not pick up the "−habit" tag — it is not a habit.
+                const tag = e.isLedgerOnly
+                    ? ''
+                    : (!e.isDeleted && e.isPenalty
+                        ? `<span class="ah-tag ah-tag-penalty"><i class="ph-bold ph-lightning mk-ico-lead"></i>auto-penalty</span>`
+                        : (!e.isDeleted && !isPos ? `<span class="ah-tag ah-tag-negative">−habit</span>` : ''));
                 // Delete button: editable if within 7 days, not deleted, not today's non-penalty
                 const canDelete = !e.isDeleted && e.activityId &&
                     e.dateISO >= sevenDaysAgo &&
@@ -7881,7 +8067,7 @@
                 activity.shieldsConsumed = 0;
                 activity.streakStartWindow = null;
                 activity.streakGrantedDate = null;
-                activity.shieldCapUsed = shieldFloorFor(activity);
+                activity.shieldCapUsed = shieldFloorFor(activity, 0);
                 return;
             }
             activity.lastCompleted = userHistory[userHistory.length - 1].date;
@@ -7908,7 +8094,7 @@
                 activity.shieldsConsumed = 0;
                 activity.streakStartWindow = hasTodayCompletion ? todayStr : null;
                 activity.streakGrantedDate = hasTodayCompletion ? todayStr : null;
-                activity.shieldCapUsed = shieldFloorFor(activity);
+                activity.shieldCapUsed = shieldFloorFor(activity, activity.shieldsConsumed);
                 activity.bestStreak = Math.max(activity.bestStreak || 0, activity.streak);
                 return;
             }
@@ -7925,6 +8111,12 @@
 
             let streak = 0;
             let shieldsConsumed = 0;
+            // The floor here deliberately reads the activity's LIVE consumed
+            // count rather than passing 0: this walk re-derives the run that
+            // is already under way, and a shield applied part-way through it
+            // (when the pool had room by the held-cap) would otherwise be
+            // clamped back out on the next login. Segment resets below start
+            // genuinely fresh runs and do pass 0.
             let walkCapUsed = shieldFloorFor(activity);
             let streakStartWindow = null;
             const MAX_WALK = 400;
@@ -7943,12 +8135,14 @@
                     streak++;
                     if (!streakStartWindow) streakStartWindow = fwdCursor;
                     if (SHIELD_MILESTONES.includes(streak))
-                        walkCapUsed = Math.min(SHIELD_ABS_CAP, walkCapUsed + 1);
+                        walkCapUsed = Math.min(shieldCapLimit(shieldsConsumed), walkCapUsed + 1);
                 } else if (streak > 0 && (walkCapUsed - shieldsConsumed) > 0) {
                     shieldsConsumed++;
                 } else if (streak > 0) {
                     // Unshielded miss — streak breaks. Reset; later hits start fresh.
-                    streak = 0; shieldsConsumed = 0; walkCapUsed = shieldFloorFor(activity);
+                    // A fresh segment has consumed nothing, so its floor is the
+                    // flat cap of 10 again.
+                    streak = 0; shieldsConsumed = 0; walkCapUsed = shieldFloorFor(activity, 0);
                     streakStartWindow = null;
                 }
                 // streak===0 + miss: no active streak to protect, skip silently.
@@ -7960,12 +8154,12 @@
                 if (streak === 0) {
                     // Fresh streak that begins today.
                     shieldsConsumed = 0;
-                    walkCapUsed = shieldFloorFor(activity);
+                    walkCapUsed = shieldFloorFor(activity, 0);
                     streakStartWindow = todayWindow;
                 }
                 streak++;
                 if (SHIELD_MILESTONES.includes(streak))
-                    walkCapUsed = Math.min(SHIELD_ABS_CAP, walkCapUsed + 1);
+                    walkCapUsed = Math.min(shieldCapLimit(shieldsConsumed), walkCapUsed + 1);
             }
 
             activity.streak = streak;
@@ -7973,7 +8167,9 @@
             activity.bestStreak = Math.max(activity.bestStreak || 0, streak);
             activity.streakStartWindow = streakStartWindow ? toLocalDateStr(streakStartWindow) : null;
             activity.streakGrantedDate = hasTodayCompletion ? todayStr : null;
-            activity.shieldCapUsed = streak > 0 ? walkCapUsed : shieldFloorFor(activity);
+            activity.shieldCapUsed = streak > 0
+                ? Math.min(walkCapUsed, shieldCapLimit(shieldsConsumed))
+                : shieldFloorFor(activity, 0);
         }
 
         // ── End Retroactive Recalculation Engine ──────────────────────────
@@ -10576,7 +10772,9 @@
         // SHIELD RULES:
         //   Base capacity is shieldFloorFor(activity) — 3, plus one per shield
         //   applied from the Grit pool. +1 more at each milestone
-        //   (25/50/75/100). The sum is capped at SHIELD_ABS_CAP (10).
+        //   (25/50/75/100). What is capped at SHIELD_ABS_CAP (10) is the
+        //   number HELD, i.e. capacity minus shields already consumed — not
+        //   capacity itself, and not the lifetime total (spec §4).
         //   Each missed closed window costs 1 shield. Unshielded miss → streak=0.
         //   Shields reset to the floor automatically when a new streak begins
         //   (the walk finds no consumed shields in a fresh run) — applied
@@ -10621,7 +10819,7 @@
                 if (lcWindow) {
                     const healHist = (activity.completionHistory || [])
                         .filter(e => !e.isPenalty && (e.xp || 0) > 0);
-                    let cur = lcWindow, shieldsLeft = shieldFloorFor(activity), oldestHit = lcWindow;
+                    let cur = lcWindow, shieldsLeft = shieldFloorFor(activity, 0), oldestHit = lcWindow;
                     for (let i = 0; i < 400; i++) {
                         const winEnd = getNextCycleWindowStart(activity, cur);
                         if (!winEnd) break;
@@ -10644,6 +10842,12 @@
 
             let streak = 0;
             let shieldsConsumed = 0;
+            // The floor here deliberately reads the activity's LIVE consumed
+            // count rather than passing 0: this walk re-derives the run that
+            // is already under way, and a shield applied part-way through it
+            // (when the pool had room by the held-cap) would otherwise be
+            // clamped back out on the next login. Segment resets below start
+            // genuinely fresh runs and do pass 0.
             let walkCapUsed = shieldFloorFor(activity);
             let streakStartWindow = null;
             const MAX_WALK = 400;
@@ -10672,13 +10876,13 @@
                         streak++;
                         if (!streakStartWindow) streakStartWindow = fwdCursor;
                         if (SHIELD_MILESTONES.includes(streak))
-                            walkCapUsed = Math.min(SHIELD_ABS_CAP, walkCapUsed + 1);
+                            walkCapUsed = Math.min(shieldCapLimit(shieldsConsumed), walkCapUsed + 1);
                     } else if (streak > 0 && (walkCapUsed - shieldsConsumed) > 0) {
                         shieldsConsumed++;
                     } else if (streak > 0) {
                         // Unshielded miss — streak breaks. Reset so any later
                         // segment in the same walk starts fresh with full shields.
-                        streak = 0; shieldsConsumed = 0; walkCapUsed = shieldFloorFor(activity);
+                        streak = 0; shieldsConsumed = 0; walkCapUsed = shieldFloorFor(activity, 0);
                         streakStartWindow = null;
                     }
                     // streak===0 + miss: no active streak to protect, skip.
@@ -10709,14 +10913,14 @@
             activity.bestStreak      = Math.max(activity.bestStreak || 0, finalStreak);
             if (finalStreak === 0) {
                 activity.streakStartWindow = null;
-                activity.shieldCapUsed     = shieldFloorFor(activity);
+                activity.shieldCapUsed     = shieldFloorFor(activity, 0);
             } else {
                 // Always re-stamp from the walk — handles mid-walk resets where
                 // an earlier segment broke and a later one anchored elsewhere.
                 activity.streakStartWindow = streakStartWindow
                     ? toLocalDateStr(streakStartWindow)
                     : activity.streakStartWindow;
-                activity.shieldCapUsed = walkCapUsed;
+                activity.shieldCapUsed = Math.min(walkCapUsed, shieldCapLimit(shieldsConsumed));
             }
 
             return true;
@@ -10796,15 +11000,18 @@
                 return new Date(d);
             }
             if (freq === 'weekly') {
-                // Sunday-anchored week (matches isCompletedToday)
+                // Monday-anchored week (spec §9, matches isCompletedToday)
                 const dow = d.getDay(); // 0 = Sun
-                const sun = new Date(d);
-                sun.setDate(d.getDate() - dow);
-                return sun;
+                const mon = new Date(d);
+                mon.setDate(d.getDate() - ((dow + 6) % 7));   // 0=Sun → back 6
+                return mon;
             }
             if (freq === 'biweekly') {
-                // Anchored to Jan 5 2025 (matches isCompletedToday)
-                const biAnchor = new Date('2025-01-05T00:00:00');
+                // Anchored to Mon 6 Jan 2025 (spec §9, matches isCompletedToday).
+                // The anchor moved one day forward from the old Sunday 5 Jan so
+                // the fortnight now starts on a Monday; the 14-day cadence off
+                // it is unchanged.
+                const biAnchor = new Date(BIWEEKLY_ANCHOR);
                 const weeksSinceAnchor = Math.floor((d - biAnchor) / (7 * 86400000));
                 const cycleWeek = weeksSinceAnchor - (weeksSinceAnchor % 2);
                 return new Date(biAnchor.getTime() + cycleWeek * 7 * 86400000);
@@ -18452,6 +18659,30 @@
             [1.30, 100]
         ];
 
+        // §1 — the ABSOLUTE weekly bonus, [completions, grit], linearly
+        // interpolated between anchors and rounded to whole Grit.
+        //
+        // The curve above measures a user against their OWN quota, which is
+        // the whole point of it and also its blind spot: someone tracking
+        // twenty activities who has a strong week can score the same as
+        // someone tracking two who had a perfect one, though the first did far
+        // more real work. This second curve is the same yardstick for
+        // everybody — raw completions, no denominator — and the two are added
+        // together.
+        //
+        // It flattens deliberately toward the top: 20 → 35 completions is
+        // worth 16 Grit, 65 → 85 only 12. Volume is rewarded; a pure
+        // completions race is not.
+        const GRIT_ABS_CURVE = [
+            [0,   0],
+            [10,  6],
+            [20, 16],
+            [35, 32],
+            [50, 50],
+            [65, 68],
+            [85, 80]
+        ];
+
         // ── State access ──────────────────────────────────────────────────
         // Returns the live grit object, creating it on first touch. Never
         // returns null: callers that run before sign-in get a throwaway that
@@ -18788,6 +19019,19 @@
                 byActivity: {},          // numerator split, so §3.4 deletions
                                          // can be subtracted from it
                 contributors: built.contributors,
+                // §2 — the absolute bonus counts each activity at most once per
+                // calendar day, so it needs its own tally rather than reading
+                // `completions` above. Keyed 'YYYY-MM-DD|activityId' (see
+                // gritDayKey) → how many times that activity was logged that
+                // day; the bonus counts the KEYS, so the fifth log of a trivial
+                // habit on a Tuesday adds nothing. Counts, not flags, so
+                // removing one of five completions still leaves the day
+                // counted.
+                //
+                // Nothing else in the app reads this. Streaks, XP, the ratio
+                // bonus above and an activity's own history all still count
+                // every completion, exactly as they did.
+                dayTally: {},
                 reconciledAt: null
             };
         }
@@ -18809,6 +19053,53 @@
             return Math.round(c[c.length - 1][1]);
         }
 
+        // §1 — the absolute curve, read the same way gritCurve() reads the
+        // ratio curve: linear between anchors, flat past the last one. There is
+        // no cliff at the bottom; the curve starts at (0, 0) and simply rises.
+        function gritAbsCurve(completions) {
+            var c = GRIT_ABS_CURVE;
+            if (!c.length) return 0;
+            var n = Math.max(0, completions || 0);
+            if (n <= c[0][0]) return Math.round(c[0][1]);
+            for (var i = 1; i < c.length; i++) {
+                if (n <= c[i][0]) {
+                    var span = c[i][0] - c[i - 1][0];
+                    var f = span > 0 ? (n - c[i - 1][0]) / span : 0;
+                    return Math.round(c[i - 1][1] + f * (c[i][1] - c[i - 1][1]));
+                }
+            }
+            return Math.round(c[c.length - 1][1]);
+        }
+
+        // §2 — the week's completion count AS THE ABSOLUTE BONUS SEES IT: one
+        // per activity per calendar day, however many times it was really
+        // logged. Every frequency is treated alike — daily, weekly, monthly,
+        // occasional — because the cap is about padding the count, and padding
+        // does not care what an activity's cadence is.
+        function gritAbsCompletions(week) {
+            var tally = week && week.dayTally;
+            if (!tally) return 0;
+            var n = 0;
+            for (var k in tally) {
+                if (!Object.prototype.hasOwnProperty.call(tally, k)) continue;
+                if ((tally[k] || 0) > 0) n++;
+            }
+            return n;
+        }
+
+        function gritAbsBonus(week) {
+            return gritAbsCurve(gritAbsCompletions(week));
+        }
+
+        // §1 — what the week actually pays: the ratio bonus and the absolute
+        // bonus added together. The user is never shown the two parts, only
+        // this number, so this is the only function any payout or projection
+        // should call.
+        function gritWeekPayout(week) {
+            var r = gritWeekRatio(week);
+            return (r === null ? 0 : gritCurve(r)) + gritAbsBonus(week);
+        }
+
         // §3.5 — ratio = min(completions / quota, 1.30). A zero denominator
         // is NOT a divide-by-zero and NOT a payout: it is "nothing has a
         // frequency set", which the UI says plainly (§8.9).
@@ -18817,9 +19108,11 @@
             return Math.min(week.completions / week.quota, GRIT_RATIO_CAP);
         }
 
+        // The single number the UI shows. Both components, added — never
+        // broken out (§1). A week with no quota at all still earns the
+        // absolute half: that curve has no denominator to be missing.
         function gritProjectedBonus(week) {
-            var r = gritWeekRatio(week);
-            return r === null ? 0 : gritCurve(r);
+            return gritWeekPayout(week);
         }
 
         // §3.4 — activities deleted mid-week leave the denominator immediately
@@ -18842,17 +19135,41 @@
             // exist. deleteOnComplete activities are excluded — they are
             // *meant* to vanish on completion and their completion was real.
             var by = w.byActivity || (w.byActivity = {});
+            var dropped = {};
             Object.keys(by).forEach(function (id) {
                 if (by[id] && by[id].keepOnDelete) return;
                 if (gritFindActivity(id)) return;
                 var n = (typeof by[id] === 'number') ? by[id] : (by[id].n || 0);
                 if (n > 0) { w.completions = Math.max(0, w.completions - n); changed = true; }
                 delete by[id];
+                dropped[id] = true;
             });
+
+            // The §2 tally follows the numerator exactly: an activity that has
+            // left the week's count must not still be inflating the absolute
+            // bonus through the days it was logged on.
+            var tally = w.dayTally;
+            if (tally) {
+                Object.keys(tally).forEach(function (key) {
+                    var id = key.slice(11);          // 'YYYY-MM-DD|' is 11 chars
+                    if (dropped[id]) { delete tally[key]; changed = true; }
+                });
+            }
             return changed;
         }
 
-        function gritBumpNumerator(g, activity, delta) {
+        // §2 — the key under which one activity's completions on one local day
+        // are tallied for the absolute bonus. The date comes first and is
+        // always ten characters, so the activity id is unambiguously everything
+        // after the separator even if an id ever contains one.
+        function gritDayKey(activityId, dayStr) { return dayStr + '|' + activityId; }
+
+        // `dayStr` is the LOCAL day the completion belongs to — today for a live
+        // completion, the backdated day for a retroactive one, and the removed
+        // entry's own day for a reversal. It is what the §2 day-cap is keyed on,
+        // so passing the wrong one would let a backdated completion pad a day
+        // that already counted.
+        function gritBumpNumerator(g, activity, delta, dayStr) {
             var w = g.week;
             if (!w) return;
             w.completions = Math.max(0, w.completions + delta);
@@ -18865,6 +19182,15 @@
             // above doesn't then take the completion back.
             if (activity.deleteOnComplete) rec.keepOnDelete = true;
             if (rec.n === 0 && !rec.keepOnDelete) delete by[activity.id]; else by[activity.id] = rec;
+
+            // The §2 day tally. Lazily created, so a week already open when
+            // this shipped starts counting from the next completion rather than
+            // being reconstructed — the same way the week itself is never
+            // rebuilt for weeks the app did not observe (§3.6).
+            var tally = w.dayTally || (w.dayTally = {});
+            var key = gritDayKey(activity.id, dayStr || gritDayOf(new Date()));
+            var n = Math.max(0, (tally[key] || 0) + delta);
+            if (n === 0) delete tally[key]; else tally[key] = n;
         }
 
         // §3.6 — rollover. Called on login and before every write that touches
@@ -18902,20 +19228,33 @@
             if (!g.awarded[marker]) {
                 g.awarded[marker] = true;
                 var ratio = gritWeekRatio(closed);
-                var payout = ratio === null ? 0 : gritCurve(ratio);
+                // §1 — one payout, two components. They are summed here and
+                // never paid, toasted or stored separately; the ledger carries
+                // both figures as meta so the record can still explain the
+                // number, but the user is shown one.
+                var ratioPart = ratio === null ? 0 : gritCurve(ratio);
+                var absDone   = gritAbsCompletions(closed);
+                var absPart   = gritAbsCurve(absDone);
+                var payout    = ratioPart + absPart;
                 closed.reconciledAt = new Date().toISOString();
                 if (payout > 0) {
                     gritApplyDelta(payout, 'weekly_bonus', {
-                        ratio: Math.round(ratio * 1000) / 1000,
+                        ratio: ratio === null ? null : Math.round(ratio * 1000) / 1000,
                         quota: closed.quota,
                         completions: closed.completions,
+                        absCompletions: absDone,
+                        ratioBonus: ratioPart,
+                        absoluteBonus: absPart,
                         anchor: closed.anchor
                     });
-                    gritBurstAdd('Weekly consistency (' + Math.round(ratio * 100) + '% of target)', payout);
+                    gritBurstAdd(ratio === null
+                        ? 'Weekly effort (' + absDone + ' completion' + (absDone === 1 ? '' : 's') + ')'
+                        : 'Weekly consistency (' + Math.round(ratio * 100) + '% of target)', payout);
                 }
                 g.lastClosedWeek = {
                     anchor: closed.anchor, quota: closed.quota,
                     completions: closed.completions,
+                    absCompletions: absDone,
                     ratio: ratio, payout: payout
                 };
             }
@@ -19059,7 +19398,8 @@
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name });
             if (entry) entry.gritAwarded = GRIT_DRIP;
-            gritBumpNumerator(g, activity, +1);
+            gritBumpNumerator(g, activity, +1,
+                gritDayOf(entry && entry.date ? entry.date : new Date()));
             // Floated from the card by spawnFloatingGrit(), not toasted — see
             // the `floated` flag in gritFlushBurst(). A backdated completion
             // has no card to float from, so gritOnRetroComplete() still toasts.
@@ -19092,7 +19432,7 @@
             gritApplyDelta(GRIT_DRIP, 'completion',
                 { activityId: activity.id, activityTitle: activity.name, backdatedTo: dateStr });
             if (entry) entry.gritAwarded = GRIT_DRIP;
-            if (g.week && dateStr >= g.week.anchor) gritBumpNumerator(g, activity, +1);
+            if (g.week && dateStr >= g.week.anchor) gritBumpNumerator(g, activity, +1, dateStr);
             gritBurstAdd((activity.name || 'Completion') + ' (' + dateStr + ')', GRIT_DRIP);
             gritCheckStreakMilestones(activity);
             gritRefreshUI();
@@ -19119,7 +19459,7 @@
             // that is open now, so an undo across a rollover can't dent the
             // new week's ratio.
             var day = gritDayOf(entry.date);
-            if (g.week && day >= g.week.anchor) gritBumpNumerator(g, activity, -1);
+            if (g.week && day >= g.week.anchor) gritBumpNumerator(g, activity, -1, day);
 
             if (entry.gritAwarded) {
                 var meta = { activityId: activity.id, activityTitle: activity.name };
@@ -19332,8 +19672,11 @@
             if ((g.shieldPool || 0) <= 0) {
                 return { ok: false, message: 'No shields in your pool. Buy one for ' + GRIT_SHIELD_COST + ' Grit.' };
             }
-            if (shieldCapNow(a) >= SHIELD_ABS_CAP) {
-                return { ok: false, message: (a.name || 'That activity') + ' is already at ' + SHIELD_ABS_CAP + ' shields — the maximum.' };
+            // Spec §4: the refusal is about shields HELD right now, never about
+            // how many this activity has earned or burned over its life. An
+            // activity that has spent most of its pool has room again.
+            if (shieldsHeldNow(a) >= SHIELD_ABS_CAP) {
+                return { ok: false, message: (a.name || 'That activity') + ' is already holding ' + SHIELD_ABS_CAP + ' shields — the most it can carry at once.' };
             }
 
             _gritApplyLock = true;
@@ -19367,7 +19710,7 @@
                 gritFlushLedger();
                 try { updateDashboard(); } catch (e) {}
                 gritRefreshUI();
-                return { ok: true, cap: shieldCapNow(a), title: a.name };
+                return { ok: true, cap: shieldsHeldNow(a), title: a.name };
             } finally {
                 _gritApplyLock = false;
             }
@@ -19543,6 +19886,7 @@
             var ratio = gritWeekRatio(w);
             var pct = ratio === null ? 0 : Math.min(1, ratio / GRIT_RATIO_CAP);
             var projected = gritProjectedBonus(w);
+            var absDone = gritAbsCompletions(w);
             var atTarget = ratio !== null && ratio >= 1;
 
             var html = '';
@@ -19560,13 +19904,28 @@
             html += '<button type="button" class="grit-week" id="gritWeekBar" ' +
                         'aria-expanded="false" aria-controls="gritBreakdown">';
             if (ratio === null) {
+                // No frequency anywhere means no target — but §1's absolute
+                // bonus has no target to miss, so a week of real work still
+                // pays here. The bar fills against the top of that curve, the
+                // only scale this user has.
+                var absTop = GRIT_ABS_CURVE[GRIT_ABS_CURVE.length - 1][0];
+                var absPct = absTop > 0 ? Math.min(1, absDone / absTop) : 0;
                 html += '<div class="grit-week-top">' +
                           '<span class="grit-week-title">This week</span>' +
-                          '<span class="grit-week-amt">No bonus</span>' +
+                          '<span class="grit-week-amt">' +
+                            (projected > 0 ? '+' + projected + ' Grit' : 'No bonus') +
+                          '</span>' +
                         '</div>' +
-                        '<div class="grit-week-track"><span class="grit-week-fill" style="width:0%"></span></div>' +
-                        '<div class="grit-week-note">No activity has a frequency, so there is no ' +
-                          'weekly target. Set one and it counts from Monday.</div>';
+                        '<div class="grit-week-track"><span class="grit-week-fill" style="width:' +
+                          (absPct * 100).toFixed(1) + '%"></span></div>' +
+                        '<div class="grit-week-note">' +
+                          (projected > 0
+                            ? absDone + ' completion' + (absDone === 1 ? '' : 's') + ' this week. ' +
+                              'No activity has a frequency, so there is no weekly target — ' +
+                              'set one and it counts from Monday.'
+                            : 'No activity has a frequency, so there is no weekly target. ' +
+                              'Set one and it counts from Monday.') +
+                        '</div>';
             } else {
                 html += '<div class="grit-week-top">' +
                           '<span class="grit-week-title">This week</span>' +
@@ -19601,9 +19960,9 @@
                             '</div>';
                 });
                 html += '<div class="grit-bd-foot">' +
-                          (ratio === null
-                            ? 'No target, so no bonus this week.'
-                            : 'On track for <strong>+' + projected + ' Grit</strong> when the week closes.') +
+                          (projected > 0
+                            ? 'On track for <strong>+' + projected + ' Grit</strong> when the week closes.'
+                            : 'Nothing earned toward this week\'s bonus yet.') +
                         '</div>';
             }
             html += '</div>';
@@ -19679,10 +20038,14 @@
 
             // ── How Grit works ───────────────────────────────────────────
             // The anchor the title's "i" button scrolls to.
+            // The weekly bonus is one line here because it is one payout
+            // (§1): it is built from how much of your target you hit AND how
+            // much you got done outright, but those are never shown apart.
             html += '<h4 class="grit-h" id="gritHow">How Grit works</h4>' +
                     '<ul class="grit-explain">' +
                       '<li>1 Grit per completion.</li>' +
-                      '<li>A weekly bonus, scaled by how much of your frequency target you hit.</li>' +
+                      '<li>A weekly bonus, from how much of your frequency target you hit ' +
+                        'and how much you got done overall.</li>' +
                       '<li>Streaks and mastery pay out as you reach them.</li>' +
                     '</ul>';
 
@@ -19760,9 +20123,9 @@
         let _gritLogOpen = false;   // collapsed by default — the page opens on what you can do, not on history
         let _gritLogPage = 0;
 
-        // Lists every activity a shield can actually protect, with its current
-        // shield count, and refuses the ones already at the cap in place
-        // rather than after the tap.
+        // Lists every activity a shield can actually protect, with the number
+        // it is HOLDING right now (spec §4), and refuses the ones already at
+        // the cap in place rather than after the tap.
         function gritRenderShieldPicker(host) {
             var eligible = gritAllActivities().filter(gritShieldEligible);
             if (!eligible.length) {
@@ -19772,15 +20135,15 @@
             }
             eligible.sort(function (a, b) { return (b.streak || 0) - (a.streak || 0); });
             host.innerHTML = eligible.map(function (a) {
-                var cap  = shieldCapNow(a);
-                var full = cap >= SHIELD_ABS_CAP;
+                var held = shieldsHeldNow(a);
+                var full = held >= SHIELD_ABS_CAP;
                 var used = getShieldsUsedDisplay(a);
                 return '<button type="button" class="grit-pick-row' + (full ? ' is-full' : '') + '"' +
                          ' data-act="' + gritEsc(a.id) + '"' + (full ? ' disabled' : '') + '>' +
                          '<span class="grit-pick-name">' + gritEsc(a.name || 'Activity') + '</span>' +
                          '<span class="grit-pick-meta">' +
                            (a.streak ? (a.streak + '-day streak · ') : '') +
-                           cap + '/' + SHIELD_ABS_CAP + ' shields' +
+                           held + '/' + SHIELD_ABS_CAP + ' shields' +
                            (used ? ' · ' + used + ' used' : '') +
                          '</span>' +
                          '<span class="grit-pick-cta">' + (full ? 'Full' : phIcon('shield', { weight: 'fill', lead: true }) + '+1') + '</span>' +
@@ -19789,11 +20152,16 @@
 
             host.querySelectorAll('.grit-pick-row').forEach(function (btn) {
                 btn.addEventListener('click', async function () {
+                    // Spec §5 — confirm BEFORE anything is spent. This list is
+                    // scrolled through, and a mistimed touch on it used to spend
+                    // a pooled shield on the wrong activity with no way back.
+                    // Nothing below this line runs unless the user says yes.
+                    if (!confirm('Are you sure you want to add one shield to this activity?')) return;
                     // Disabled between click and write resolution (spec §6).
                     host.querySelectorAll('.grit-pick-row').forEach(function (b) { b.disabled = true; });
                     var res = await window.gritApplyShield(btn.getAttribute('data-act'));
                     showToast(res.ok
-                        ? 'Shield placed on ' + res.title + ' — now ' + res.cap + ' of ' + SHIELD_ABS_CAP
+                        ? 'Shield placed on ' + res.title + ' — now holding ' + res.cap + ' of ' + SHIELD_ABS_CAP
                         : res.message, res.ok ? 'green' : 'red', null, res.ok ? 'shield' : null);
                     gritRenderRewards(true);
                 });
@@ -24600,6 +24968,34 @@
             return amount;
         }
 
+        // ── Mode XP in Activity History (spec §7) ────────────────────
+        // Mode XP has never appeared in Activity History, because that list is
+        // built by walking completionHistory and mode XP hangs off no activity.
+        // So a user could be paid a large Berserk swing and find no trace of it
+        // anywhere they look for XP.
+        //
+        // This is a small append-only log of the XP a mode moved, in the shape
+        // renderActivityHistory() already merges deletedActivityLog in. One
+        // entry per mode, written where the mode RESOLVES — not per bonus — so
+        // a 60-day Focus Window is one line, not sixty.
+        //
+        // Nothing is backfilled: modes.history carries no XP figure, so runs
+        // that resolved before this shipped cannot be recovered and are left
+        // out rather than guessed at.
+        const MODE_XP_LOG_MAX = 200;
+
+        function modeLogXP(label, xp, atISO) {
+            xp = Math.round(xp || 0);
+            if (!xp || !window.userData) return;
+            if (!Array.isArray(window.userData.modeXPLog)) window.userData.modeXPLog = [];
+            window.userData.modeXPLog.push({
+                at: atISO || new Date().toISOString(), label: label, xp: xp
+            });
+            if (window.userData.modeXPLog.length > MODE_XP_LOG_MAX) {
+                window.userData.modeXPLog = window.userData.modeXPLog.slice(-MODE_XP_LOG_MAX);
+            }
+        }
+
         // XP actually earned across every activity in a time range. Walks
         // completionHistory rather than diffing totalXP, so a penalty landing
         // mid-session or an undo elsewhere cannot be mistaken for progress.
@@ -24688,6 +25084,22 @@
                             });
                         });
                     });
+                });
+            } catch (e) {}
+            // Spec §6 — mode bonuses count toward the baselines the modes
+            // themselves are measured against. A won Berserk raises tomorrow's
+            // target, which is the intended behaviour (modes spec §2): the
+            // baseline is "what a day of yours is worth", and a mode day was
+            // worth more. Keyed by the same local date string, so this folds
+            // into whatever days the caller's window covers and no further.
+            try {
+                var floorKey = toLocalDateStr(new Date(floor));
+                var ghost = (window.userData && window.userData.xpTodayGhost) || {};
+                Object.keys(ghost).forEach(function (k) {
+                    if (k < floorKey) return;
+                    var v = ghost[k];
+                    if (typeof v !== 'number' || !isFinite(v)) return;
+                    out[k] = (out[k] || 0) + v;
                 });
             } catch (e) {}
             return out;
@@ -24887,6 +25299,10 @@
             // the target was worth instead of against zero.
             if (!won && earned <= 0) delta = -Math.round(a.targetXP * swing);
             modesAwardXP(delta, null);
+            // Spec §7 — one history line carrying the signed delta. A loss is
+            // logged exactly as a win is: the XP left the user's total and the
+            // history is where they go to find out why.
+            modeLogXP('Berserk Mode', delta);
 
             var res = {
                 kind: 'berserk', outcome: won ? 'won' : 'lost',
@@ -25271,7 +25687,7 @@
                     // windows in a row have gone unlogged SINCE the cover
                     // stopped? Once that run outlasts the shields the activity
                     // has, the streak is over and the credit goes with it.
-                    if (modeMissedWindowsSince(act, m.offsetFrom[id]) > shieldFloorFor(act)) {
+                    if (modeMissedWindowsSince(act, m.offsetFrom[id]) > shieldFloorFor(act, 0)) {
                         n = 0;
                     }
                 }
@@ -25565,6 +25981,10 @@
         }
 
         async function focusFinish(a) {
+            // Spec §7 — one line for the whole window, carrying the bonus XP
+            // already accumulated on the mode's own state. Logged before
+            // modesEnd() clears the active mode out from under it.
+            modeLogXP('Focus Window', a.bonusXP || 0);
             await modesEnd('completed', (a.bonusCount || 0) + ' boosted completions', {
                 resolution: {
                     kind: 'focus', outcome: 'won', title: 'Focus Window closed',
@@ -26862,6 +27282,11 @@
                 await modesEnd('ended', (a.daysElapsed || 0) + ' of ' + a.targetDays + ' days');
                 return;
             }
+            // A Focus Window ended by hand still concludes, and the bonus XP it
+            // accumulated was really paid, one completion at a time. So it gets
+            // the same single history line focusFinish() writes (spec §7) —
+            // otherwise ending early is the one way to be paid with no record.
+            if (a.kind === 'focus') modeLogXP('Focus Window', a.bonusXP || 0);
             await modesEnd('ended', '');
         }
 
