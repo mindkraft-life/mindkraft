@@ -17,6 +17,21 @@ window.__pr = {
     anchor:    function () { return gritWeekAnchorStr(new Date()); },
     ensureWeek: function () { return gritEnsureWeek(); },
 
+    // The Active routine (§1 of the routines spec) hangs off the same weekly
+    // rollover, so it is reached from here rather than from a suite of its own.
+    activeRoutine: function () {
+        var g = findActiveRoutine();
+        return g ? JSON.parse(JSON.stringify(g)) : null;
+    },
+    seedIds: function () { return activeRoutineSeedIds().slice(); },
+
+    // Planner reconciliation (§3) — the slot list in the order the timeline
+    // renders it, which is what "earliest" and "latest" mean.
+    slots: function (dateStr, activityId) {
+        return JSON.parse(JSON.stringify(plannerSlotsFor(dateStr, activityId)));
+    },
+    reconcile: function (activityId) { return plannerReconcileActivityToday(activityId); },
+
     // §4 — the shield numbers, from the three angles that disagreed before.
     shields: function (id) {
         var a = gritFindActivity(id);

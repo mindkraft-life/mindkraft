@@ -8568,6 +8568,118 @@
             renderPlanner();
         };
 
+        // ── Planner ↔ Activities reconciliation ──────────────────────────
+        // The planner used to keep its own `completed` boolean per slot. That
+        // made it a second source of truth about something completionHistory
+        // already knew, and it was wired one way only: ticking a slot pushed
+        // into the real completion, and nothing ever pushed back. Completing
+        // the same activity from the Activities tab left the planner showing
+        // it undone, forever.
+        //
+        // There is no per-slot truth to keep. What is true is a COUNT — how
+        // many times the activity was really completed today. So the booleans
+        // stop being written directly and become a projection of that count:
+        // reconciling brings the number of ticked slots up or down to match.
+        // Earliest open slot fills, latest ticked slot clears. Same answer
+        // whichever surface triggered the change, and an activity that can be
+        // logged several times a day is handled without double-counting.
+        //
+        // Today only — past planner days are read-only in the UI.
+
+        // Read-only: never creates a planner day for someone who has never
+        // opened the planner.
+        function plannerSlotsFor(dateStr, activityId) {
+            var planner = window.userData && window.userData.planner;
+            if (!planner) return [];
+            var day = (planner.days || {})[dateStr] || {};
+            var doneRec = day.completedRecurring || {};
+            var skipSet = new Set(day.skipRecurring || []);
+            var slots = [];
+            (planner.recurring || []).forEach(function(rec) {
+                if (skipSet.has(rec.id)) return;
+                if (rec.activityId !== activityId) return;
+                slots.push({ id: rec.id, time: rec.time || '', isRecurring: true,
+                             done: !!doneRec[rec.id] });
+            });
+            (day.items || []).forEach(function(item) {
+                if (item.activityId !== activityId) return;
+                slots.push({ id: item.id, time: item.time || '', isRecurring: false,
+                             done: !!item.completed });
+            });
+            // The timeline's own order — timed first by clock, then untimed.
+            // That order is what "earliest" and "latest" mean below, so it has
+            // to be the order the user is actually looking at.
+            slots.sort(function(a, b) {
+                if (a.time && !b.time) return -1;
+                if (!a.time && b.time) return 1;
+                if (a.time && b.time) return a.time.localeCompare(b.time);
+                return 0;
+            });
+            return slots;
+        }
+
+        function plannerSetSlotDone(dateStr, slot, done) {
+            var day = getPlannerDay(dateStr);
+            if (slot.isRecurring) {
+                if (!day.completedRecurring) day.completedRecurring = {};
+                if (done) day.completedRecurring[slot.id] = true;
+                else delete day.completedRecurring[slot.id];
+            } else {
+                (day.items || []).forEach(function(it) {
+                    if (it.id === slot.id) it.completed = done;
+                });
+            }
+            slot.done = done;
+        }
+
+        // Brings today's planner slots for one activity in line with how many
+        // times it was really completed today. Returns true if anything moved.
+        //
+        // Takes the activity itself or its id. Callers that already hold the
+        // object pass it: that is the object whose completionHistory was just
+        // mutated, whereas findActivityById goes through an index memoized on
+        // a structural fingerprint and can hand back a stale one.
+        function plannerReconcileActivityToday(activityOrId) {
+            if (!activityOrId || !window.userData || !window.userData.planner) return false;
+            var act = (typeof activityOrId === 'object')
+                ? activityOrId
+                : (typeof findActivityById === 'function' ? findActivityById(activityOrId) : null);
+            if (!act || !act.id) return false;
+            var activityId = act.id;
+
+            var todayStr = localDateStr();
+            var slots = plannerSlotsFor(todayStr, activityId);
+            if (!slots.length) return false;
+
+            // Penalties are not completions, so they never tick a slot.
+            var real = (act.completionHistory || []).filter(function(e) {
+                return e && !e.isPenalty && toLocalDateStr(new Date(e.date)) === todayStr;
+            }).length;
+
+            var done = slots.filter(function(s) { return s.done; }).length;
+            var changed = false;
+
+            for (var i = 0; i < slots.length && done < real; i++) {
+                if (slots[i].done) continue;
+                plannerSetSlotDone(todayStr, slots[i], true);
+                done++; changed = true;
+            }
+            for (var j = slots.length - 1; j >= 0 && done > real; j--) {
+                if (!slots[j].done) continue;
+                plannerSetSlotDone(todayStr, slots[j], false);
+                done--; changed = true;
+            }
+            return changed;
+        }
+        window.plannerReconcileActivityToday = plannerReconcileActivityToday;
+
+        // Only when the timeline is actually on screen — offsetParent is null
+        // inside a display:none subtree, the same test the minute marker uses.
+        function plannerRerenderIfVisible() {
+            var container = document.getElementById('plannerTimeline');
+            if (container && container.offsetParent !== null) renderPlanner();
+        }
+
         // ── Render ──
         function renderPlanner() {
             var dateStr = window._plannerDate;
@@ -9089,6 +9201,12 @@
                             primary.activityIds.push(aid);
                         }
                     });
+                    // The survivor inherits the system tag, so a user-made group
+                    // that happens to share the signature cannot silently strip
+                    // the Active routine's handle and orphan it from the rollover.
+                    if (grp.isSystemDefault && !primary.isSystemDefault) {
+                        primary.isSystemDefault = grp.isSystemDefault;
+                    }
                 } else {
                     sigMap[sig] = out.length;
                     out.push(grp);
@@ -9248,6 +9366,10 @@
                 collapsed: false,
                 createdAt: new Date().toISOString()
             };
+            // Purely a handle so the app can find this group again on the next
+            // weekly rollover. It carries NO edit restrictions: a tagged group
+            // renames, re-times, re-sorts and deletes exactly like any other.
+            if (opts && opts.isSystemDefault) g.isSystemDefault = opts.isSystemDefault;
             arr.push(g);
             return g;
         }
@@ -9260,6 +9382,10 @@
             if ('timeStart' in patch) g.timeStart = patch.timeStart;
             if ('timeEnd'   in patch) g.timeEnd   = patch.timeEnd;
             if ('collapsed' in patch) g.collapsed = !!patch.collapsed;
+            if ('isSystemDefault' in patch) {
+                if (patch.isSystemDefault) g.isSystemDefault = patch.isSystemDefault;
+                else delete g.isSystemDefault;
+            }
             if ('activityIds' in patch && Array.isArray(patch.activityIds)) {
                 g.activityIds = patch.activityIds.slice();
             }
@@ -9270,7 +9396,17 @@
             var arr = _ensureGroupsArr();
             if (!arr) return false;
             for (var i = 0; i < arr.length; i++) {
-                if (arr[i].id === groupId) { arr.splice(i, 1); return true; }
+                if (arr[i].id === groupId) {
+                    // A delete has to stay deleted. Without this flag the next
+                    // weekly rollover would helpfully rebuild the group the user
+                    // just removed, every Monday, forever.
+                    if (arr[i].isSystemDefault === 'active') {
+                        if (!window.userData.settings) window.userData.settings = {};
+                        window.userData.settings.activeRoutineDismissed = true;
+                    }
+                    arr.splice(i, 1);
+                    return true;
+                }
             }
             return false;
         }
@@ -9351,7 +9487,106 @@
             return dirty;
         }
 
+        // ── The "Active" routine ────────────────────────────────────────
+        // A default group seeded from whatever is currently counting toward
+        // the weekly Grit quota. It is an ORDINARY group in every respect —
+        // same shape, same edit and delete UI, no restricted fields. The
+        // isSystemDefault tag exists for one reason: so the weekly rollover
+        // can find it again.
+        //
+        // Lifecycle: the grit week rollover fully REPLACES its activityIds
+        // with the new week's contributor list. Replace, not merge — last
+        // week's list is the previous answer to the question, not a baseline.
+        // Mid-week edits are therefore overwritten the following Monday, which
+        // is by design: contributors are frozen for the week, so in practice
+        // this resets things exactly once a week.
+        const ACTIVE_ROUTINE_NAME = 'Active';
+
+        function findActiveRoutine() {
+            var groups = getGroups();
+            for (var i = 0; i < groups.length; i++) {
+                if (groups[i].isSystemDefault === 'active') return groups[i];
+            }
+            return null;
+        }
+
+        function activeRoutineDismissed() {
+            return !!(window.userData && window.userData.settings &&
+                      window.userData.settings.activeRoutineDismissed);
+        }
+
+        // This week's contributor activity ids, read from the frozen quota the
+        // Grit engine already computed. Falls back to building one when the
+        // week has not been opened yet, so a first run is never empty-handed.
+        function activeRoutineSeedIds() {
+            var ids = [];
+            try {
+                var g = gritState();
+                var w = g && g.week;
+                var contributors = (w && w.contributors) ||
+                    (typeof gritBuildWeekQuota === 'function'
+                        ? gritBuildWeekQuota(new Date()).contributors
+                        : []);
+                (contributors || []).forEach(function (c) {
+                    if (!c || !c.activityId) return;
+                    // A contributor whose activity has since been deleted would
+                    // be a dangling id nobody can ever complete.
+                    if (!findActivityById(c.activityId)) return;
+                    if (ids.indexOf(c.activityId) === -1) ids.push(c.activityId);
+                });
+            } catch (e) { console.warn('Active routine seed failed', e); }
+            return ids;
+        }
+
+        // Called from the grit week rollover. Returns true when it changed
+        // anything, so the caller's dirty flag stays honest.
+        function syncActiveRoutine() {
+            if (!window.userData) return false;
+            var g = findActiveRoutine();
+            var ids = activeRoutineSeedIds();
+
+            if (!g) {
+                // First run after this shipped, or a fresh account. A user who
+                // deleted it has said no, and the rollover must not argue.
+                if (activeRoutineDismissed()) return false;
+                if (!ids.length) return false;
+                return !!addGroup({ name: ACTIVE_ROUTINE_NAME, color: 'blue',
+                                    activityIds: ids, isSystemDefault: 'active' });
+            }
+
+            // Only activityIds is rewritten. Name, colour, time window and
+            // collapsed state are the user's, and stay theirs.
+            var prev = g.activityIds || [];
+            var same = prev.length === ids.length && prev.every(function (id, i) { return id === ids[i]; });
+            if (same) return false;
+            g.activityIds = ids.slice();
+            return true;
+        }
+
+        // The create-routine flow's one-tap reseed. Clears the dismissed flag
+        // so the weekly rewrite resumes from here on.
+        window.restoreActiveRoutine = function () {
+            if (findActiveRoutine()) { closeGroupModal(); return; }
+            if (window.userData && window.userData.settings) {
+                window.userData.settings.activeRoutineDismissed = false;
+            }
+            var ids = activeRoutineSeedIds();
+            var g = addGroup({ name: ACTIVE_ROUTINE_NAME, color: 'blue',
+                               activityIds: ids, isSystemDefault: 'active' });
+            closeGroupModal();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            if (typeof showToast === 'function') {
+                showToast(g && ids.length
+                    ? 'Active restored — ' + ids.length + ' activit' + (ids.length === 1 ? 'y' : 'ies')
+                    : 'Active restored — nothing is counting toward Grit yet',
+                    'blue', null, 'check');
+            }
+            if (typeof debouncedSaveUserData === 'function') debouncedSaveUserData();
+        };
+
         // Expose for cross-section access and console debugging.
+        window.findActiveRoutine       = findActiveRoutine;
+        window.syncActiveRoutine       = syncActiveRoutine;
         window.getGroups               = getGroups;
         window.findGroupById           = findGroupById;
         window.findGroupForActivity    = findGroupForActivity;
@@ -9492,6 +9727,14 @@
                 startVal = (sH < 10 ? '0' : '') + sH + ':00';
                 endVal   = (eH < 10 ? '0' : '') + eH + ':00';
                 deleteBtn.style.display = 'none';
+            }
+
+            // Offer the reseed only on the create flow, and only while no
+            // Active routine exists — including after a delete, which is how
+            // a user gets it back without waiting for Monday.
+            var restoreEl = document.getElementById('groupRestoreActive');
+            if (restoreEl) {
+                restoreEl.style.display = (!groupId && !findActiveRoutine()) ? '' : 'none';
             }
 
             _buildGroupTimeOptions(startEl, startVal);
@@ -9658,39 +9901,83 @@
         };
 
         // ── Slot-aware completion (per-slot, not per-activity) ────────────
-        // Each planner slot tracks its own completion state. Completing a slot
-        // also completes the activity once (so XP/streak fire), but slots for
-        // the same activity remain independent — multi-per-day or not.
+        // These stay the click handlers, but they no longer decide which slot
+        // is ticked. They move the ACTIVITY's real completion count, and the
+        // reconciliation above projects that count back onto the slots — so a
+        // tap here and a tap on the Activities tab land in exactly the same
+        // place. The direct boolean writes that used to live here were the
+        // second source of truth the whole bug came from.
         window.plannerCompleteSlot = function(slotId, activityId, isRecurring) {
             ensurePlannerData();
-            var day = getPlannerDay(window._plannerDate);
-            if (isRecurring) {
-                if (!day.completedRecurring) day.completedRecurring = {};
-                day.completedRecurring[slotId] = true;
-            } else {
-                (day.items || []).forEach(function(it) {
-                    if (it.id === slotId) it.completed = true;
-                });
-            }
-            // Fires XP, streak, toast — same as completing from the activity card.
-            // Slot bookkeeping above is already saved by completeActivityById's
-            // saveUserData call.
+            // Fires XP, streak, toast — same as completing from the activity
+            // card — and the completion hook reconciles the slots afterwards.
             completeActivityById(activityId);
         };
 
         window.plannerUndoSlot = function(slotId, activityId, isRecurring) {
             ensurePlannerData();
-            var day = getPlannerDay(window._plannerDate);
-            if (isRecurring) {
-                if (day.completedRecurring) delete day.completedRecurring[slotId];
-            } else {
-                (day.items || []).forEach(function(it) {
-                    if (it.id === slotId) it.completed = false;
-                });
-            }
-            // Reverse the XP/streak side-effect for one completion.
+            // Reverse the XP/streak side-effect for one completion; the undo
+            // hook clears the latest ticked slot to match.
             undoActivityById(activityId);
         };
+
+        // Reconciliation runs after ANY change to an activity's completions —
+        // whichever surface caused it. Wrapping is how the rest of the app
+        // hooks completion (the Modes section does the same), and it covers
+        // every return path inside completeActivity, including the level-up
+        // one that returns early.
+        (function() {
+            var _origComplete = window.completeActivity;
+            if (typeof _origComplete === 'function') {
+                window.completeActivity = async function(di, pi, ai) {
+                    var act = null;
+                    try { act = window.userData.dimensions[di].paths[pi].activities[ai]; } catch (e) {}
+                    await _origComplete.apply(this, arguments);
+                    if (act) {
+                        try {
+                            if (plannerReconcileActivityToday(act)) {
+                                plannerRerenderIfVisible();
+                                debouncedSaveUserData();
+                            }
+                        } catch (e) { console.warn('Planner reconcile failed', e); }
+                    }
+                };
+            }
+
+            var _origUndo = window.undoActivity;
+            if (typeof _origUndo === 'function') {
+                window.undoActivity = async function(di, pi, ai) {
+                    var act = null;
+                    try { act = window.userData.dimensions[di].paths[pi].activities[ai]; } catch (e) {}
+                    await _origUndo.apply(this, arguments);
+                    if (act) {
+                        try {
+                            if (plannerReconcileActivityToday(act)) {
+                                plannerRerenderIfVisible();
+                                debouncedSaveUserData();
+                            }
+                        } catch (e) { console.warn('Planner reconcile failed', e); }
+                    }
+                };
+            }
+
+            // The history editor can only reach past days for completions, so
+            // this is a guard rather than a live path — but a retroactive edit
+            // that ever does land on today has to reconcile like any other.
+            ['retroactiveComplete', 'retroactiveDelete'].forEach(function(fn) {
+                var _orig = window[fn];
+                if (typeof _orig !== 'function') return;
+                window[fn] = async function(activityId) {
+                    await _orig.apply(this, arguments);
+                    try {
+                        if (plannerReconcileActivityToday(activityId)) {
+                            plannerRerenderIfVisible();
+                            debouncedSaveUserData();
+                        }
+                    } catch (e) { console.warn('Planner reconcile failed', e); }
+                };
+            });
+        })();
 
         // ── Add Modal ──
         var _plannerAddType = 'activity';
@@ -9798,9 +10085,14 @@
                 }
             }
 
-            await saveUserData();
+            // Optimistic, like completeActivity and everything else that
+            // mutates userData: the entry is already in memory, so close and
+            // repaint now and let the write land in the background. Awaiting a
+            // Firestore round-trip before closing the modal is what made the
+            // planner feel a second slower than the rest of the app.
             closePlannerAddModal();
             renderPlanner();
+            debouncedSaveUserData();
         };
 
         // ── Delete planner item — 3-choice action sheet ──
@@ -9845,8 +10137,9 @@
             }
             var sheet = document.getElementById('plannerDeleteSheet');
             if (sheet) sheet.remove();
-            await saveUserData();
+            // Same optimistic pattern as the add path above.
             renderPlanner();
+            debouncedSaveUserData();
         };
 
         // ── Inline planner toggle ─────────────────────────────────────────
@@ -16833,13 +17126,15 @@
             var pct = stats.total ? Math.round(stats.done / stats.total * 100) : 0;
             var statusCls = p.status === 'completed' ? ' pr-card-gold' : p.status === 'archived' ? ' pr-card-muted' : p.status === 'paused' ? ' pr-card-paused' : '';
             var unit = counts.tasks === 0 ? 'activities' : (counts.activities === 0 ? 'tasks' : 'items');
-            var groupCount = (p.groups || []).length;
 
             var bits = [];
             if (potential > 0) bits.push('<span class="pr-cd-bonus">+' + potential + ' XP</span>');
             if (gritPotential > 0) bits.push('<span class="pr-cd-grit">+' + gritPotential + ' Grit</span>');
             bits.push('<span>' + escapeHtml(prFreqLabel(p)) + '</span>');
-            bits.push('<span>' + groupCount + ' group' + (groupCount === 1 ? '' : 's') + '</span>');
+            // The group count used to sit here. It restated something the
+            // pipeline rows underneath already show — and show better, by
+            // name and by progress. A rule between the two blocks does the
+            // separating job the number was really doing.
             var detailLine = bits.join('<span class="pr-cd-sep">·</span>');
 
             var chip = '';
@@ -16874,7 +17169,8 @@
                     '</div>' +
                     '<div class="pr-prog"><div class="pr-prog-fill" style="width:' + pct + '%;"></div></div>' +
                     (chip ? '<div class="pr-card-statuschip">' + chip + '</div>' : '') +
-                    (threadsHtml ? '<div class="pr-card-threads">' + threadsHtml + '</div>' : '') +
+                    (threadsHtml ? '<div class="pr-card-divider" aria-hidden="true"></div>' +
+                                   '<div class="pr-card-threads">' + threadsHtml + '</div>' : '') +
                 '</div>' +
             '</div>';
         }
@@ -19209,11 +19505,20 @@
 
             if (!g.week || !g.week.anchor) {
                 g.week = gritNewWeek(nowAnchor);
+                // The week the contributors are read from has to exist before
+                // the routine is seeded from it, so this follows the open.
+                try { syncActiveRoutine(); } catch (e) { console.warn('Active routine sync failed', e); }
                 return true;
             }
 
             if (g.week.anchor === nowAnchor) {
-                return gritReconcileContributors(g) || changed;
+                // Same week, no rewrite — but a user who has never had the
+                // Active routine (first run after this shipped) still gets one.
+                var seeded = false;
+                if (!findActiveRoutine() && !activeRoutineDismissed()) {
+                    try { seeded = syncActiveRoutine(); } catch (e) { console.warn('Active routine seed failed', e); }
+                }
+                return gritReconcileContributors(g) || seeded || changed;
             }
 
             // ── A boundary has passed ─────────────────────────────────────
@@ -19262,6 +19567,9 @@
             // §3.6.3–4 — rebuild the denominator against current activities,
             // reset the numerator, advance straight to the current Monday.
             g.week = gritNewWeek(nowAnchor);
+            // The Active routine follows the denominator it is named after:
+            // a full replace against the week that just opened.
+            try { syncActiveRoutine(); } catch (e) { console.warn('Active routine sync failed', e); }
             return true;
         }
 
@@ -24429,7 +24737,19 @@
         const MODE_WAGER_MIN   = 25;    // Stake mode, in steps of 25
         const MODE_WAGER_MAX   = 100;
         const MODE_WAGER_STEP  = 25;
-        const MODE_WAGER_RETURN = 0.30; // Stake + Pact: stake back, plus 30%
+        // Stake + Pact: the stake back, plus a bonus that scales with the
+        // length of the commitment. 30% is now the FLOOR, at the 5-day
+        // minimum, not a flat rate — a five-day stake and a month-long one
+        // paying the same made the shortest window the only rational pick,
+        // the same mistake Berserk's flat swing used to make. The constant
+        // keeps its name and its value because it is still the number a
+        // minimum-length wager returns.
+        const MODE_WAGER_RETURN     = 0.30;
+        const MODE_WAGER_RETURN_MAX = 0.90;
+        // The same two numbers as percentages, for copy that names the curve's
+        // ends. Derived rather than typed twice so they cannot drift.
+        const MODE_WAGER_RETURN_PCT_MIN = Math.round(MODE_WAGER_RETURN * 100);
+        const MODE_WAGER_RETURN_PCT_MAX = Math.round(MODE_WAGER_RETURN_MAX * 100);
         const PACT_WAGER       = 40;    // fixed per person
 
         const BERSERK_MIN_HOURS   = 1;
@@ -24458,14 +24778,32 @@
         const RECOVERY_MAX_ACTS   = 3;
         const INSURANCE_MAX_ACTS  = 3;
         const INSURANCE_CHECKIN_DAYS = 30;
+        // Insurance is bought by the TERM now, in whole check-in cycles,
+        // rather than running until it is manually switched off. An open-ended
+        // shield has no window to scale a price against, and "I turned it on
+        // months ago" is not a commitment the mode can price. One cycle still
+        // costs what the indefinite version did, so the entry point is
+        // unchanged; the longer terms carry a discount per day.
+        const INSURANCE_MIN_CYCLES = 1;
+        const INSURANCE_MAX_CYCLES = 3;
+        const INSURANCE_TERM_COST  = { 1: 20, 2: 35, 3: 50 };
 
         const STAKE_MAX_ACTS      = 3;
         const STAKE_MIN_DAYS      = 5;
+        // The day slider had no ceiling of its own and ran to a hard-coded 60.
+        // The return curve needs a top end to scale against, and 30 days is
+        // where a stake stops being a sprint you can hold in your head.
+        const STAKE_MAX_DAYS      = 30;
         const STAKE_MIN_TOTAL     = 5;     // combined completions across all picks
 
         const FOCUS_MULTIPLIER    = 0.10;  // deliberately well under a long Berserk's swing
         const FOCUS_MIN_DAYS      = 3;
         const FOCUS_MAX_DAYS      = 90;
+        // Only the price scales, never the boost. A 3-day window costs what
+        // the flat price used to, so the shortest commitment is exactly as
+        // cheap as it was; 90 days costs six times that.
+        const FOCUS_COST_MIN      = 25;
+        const FOCUS_COST_MAX      = 150;
 
         const PACT_MIN_DAYS       = 5;
         // A floor on the COMBINED completions one side commits to, not on each
@@ -24504,18 +24842,67 @@
             recovery:  { name: 'Recovery Mode', icon: 'bandaids', tag: 'Return',
                          blurb: 'Up to three streaks climb twice as fast, until each is back at its own peak.' },
             insurance: { name: 'Insurance Mode',icon: 'shield', tag: 'Shield',
-                         blurb: 'Up to three activities stop losing streak when you miss.' },
+                         blurb: 'Up to three activities stop losing streak when you miss, for a fixed term.' },
             stake:     { name: 'Stake Mode',    icon: 'dice-five', tag: 'Wager',
                          blurb: 'Bet Grit on completion targets. Every one lands, or the stake is gone.' },
             pact:      { name: 'Pact Mode',     icon: 'handshake', tag: 'Together',
                          blurb: 'Two people, two targets, one shared outcome.' },
             focus:     { name: 'Focus Window',  icon: 'target', tag: 'Rhythm',
-                         blurb: 'One daily window. Everything logged inside it earns +10% XP.' }
+                         blurb: 'Everything you log earns +10% XP, all day, for as long as it runs.' }
         };
+
+        // ── Scaling (spec §5) ─────────────────────────────────────────────
+        // Focus and Insurance scale what they COST. Stake and Pact scale what
+        // they PAY. Both directions answer the same question — a longer
+        // commitment is worth more — from whichever side the mode charges.
+
+        // Linear from FOCUS_COST_MIN at FOCUS_MIN_DAYS to FOCUS_COST_MAX at
+        // FOCUS_MAX_DAYS, clamped at both ends the way berserkSwingFor clamps
+        // its hours.
+        function focusCostFor(days) {
+            var d = Math.max(FOCUS_MIN_DAYS, Math.min(FOCUS_MAX_DAYS, days || FOCUS_MIN_DAYS));
+            var span = FOCUS_MAX_DAYS - FOCUS_MIN_DAYS;
+            return Math.round(FOCUS_COST_MIN +
+                (FOCUS_COST_MAX - FOCUS_COST_MIN) * (d - FOCUS_MIN_DAYS) / span);
+        }
+
+        function insuranceCostFor(cycles) {
+            var c = Math.max(INSURANCE_MIN_CYCLES, Math.min(INSURANCE_MAX_CYCLES, cycles || INSURANCE_MIN_CYCLES));
+            return INSURANCE_TERM_COST[c] || MODE_COST.insurance;
+        }
+
+        function insuranceTermDays(cycles) {
+            return Math.max(INSURANCE_MIN_CYCLES, Math.min(INSURANCE_MAX_CYCLES, cycles || INSURANCE_MIN_CYCLES))
+                   * INSURANCE_CHECKIN_DAYS;
+        }
+
+        // The wagered modes' return, scaled by days committed. Clamped the
+        // same way berserkSwingFor clamps hours, so a 60-day legacy Pact
+        // returns the ceiling rather than running off the end of the curve.
+        function modeWagerReturnFor(days) {
+            var lo = STAKE_MIN_DAYS, hi = STAKE_MAX_DAYS;
+            var d = Math.max(lo, Math.min(hi, days || lo));
+            return MODE_WAGER_RETURN +
+                   (MODE_WAGER_RETURN_MAX - MODE_WAGER_RETURN) * (d - lo) / (hi - lo);
+        }
+
+        // What a wager of `stake` pays back in total if it lands.
+        function modeWagerPayoutFor(stake, days) {
+            return stake + Math.round(stake * modeWagerReturnFor(days));
+        }
+
+        function modeWagerReturnPct(days) {
+            return Math.round(modeWagerReturnFor(days) * 100);
+        }
 
         function modeCostLabel(kind) {
             if (kind === 'stake') return MODE_WAGER_MIN + '–' + MODE_WAGER_MAX + ' wager';
             if (kind === 'pact')  return PACT_WAGER + ' wager';
+            if (kind === 'focus') return FOCUS_COST_MIN + '–' + FOCUS_COST_MAX + ' Grit';
+            if (kind === 'insurance') {
+                return INSURANCE_TERM_COST[INSURANCE_MIN_CYCLES] + '–' +
+                       INSURANCE_TERM_COST[INSURANCE_MAX_CYCLES] + ' Grit';
+            }
             return MODE_COST[kind] + ' Grit';
         }
 
@@ -24841,21 +25228,12 @@
                 });
             }
 
-            if (a.kind === 'focus') {
-                var fs = modeMins(a.windowStart);
-                if (fs !== null) {
-                    out.push({
-                        id: 'mode-focus-' + a.id + '-pre',
-                        type: 'mode', modeKind: 'focus', modeId: a.id,
-                        activityId: null, activityName: null,
-                        localTime: modeHHMM(fs - 15),
-                        timezone: tz, active: true,
-                        why: '', anchor: '',
-                        windowStart: a.windowStart, windowEnd: a.windowEnd,
-                        phase: 'pre'
-                    });
-                }
-            }
+            // Focus used to schedule a "your window opens at HH:MM" nudge.
+            // The window is gone (spec §5a) — the boost applies all day — so
+            // there is no longer a moment to nudge anyone towards, and a run
+            // started under the old rules must not keep announcing a window
+            // that no longer gates anything. The sender's focus branch is left
+            // in place; nothing asks it for a reminder any more.
             return out;
         }
 
@@ -25339,13 +25717,14 @@
             // penalty is not a bonus, so nothing multiplies it — same rule the
             // Grit boost already follows.
             if (activity && activity.isNegative && !activity.isSkipNegative) return best;
+            // Focus no longer carries a time-of-day restriction (spec §5a):
+            // the boost applies all day, every day, for the chosen number of
+            // days. A run started under the old rules still carries
+            // windowStart/windowEnd on its payload; they are simply no longer
+            // read, so those runs widen to all-day rather than needing a
+            // migration.
             if (a.kind === 'focus' && !modeFocusFinished(a)) {
-                var d = new Date(whenMs || Date.now());
-                var nowMins = d.getHours() * 60 + d.getMinutes();
-                var s = modeMins(a.windowStart), e = modeMins(a.windowEnd);
-                if (s !== null && e !== null && modeInWindow(s, e, nowMins, 0, 0)) {
-                    best = Math.max(best, FOCUS_MULTIPLIER);
-                }
+                best = Math.max(best, FOCUS_MULTIPLIER);
             }
             return best;
         }
@@ -25454,7 +25833,10 @@
             if (!won && !over && !force) return false;
 
             a.resolved = true;
-            var bonus = Math.round(a.wager * MODE_WAGER_RETURN);
+            // The rate the stake was PLACED at, read off its own stored day
+            // count — not today's curve. Re-deriving it here would repay a
+            // finished stake at whatever the constants happen to say later.
+            var bonus = Math.round(a.wager * modeWagerReturnFor(a.days));
             var res;
             if (won) {
                 gritApplyDelta(a.wager + bonus, 'mode_stake_win',
@@ -25759,7 +26141,7 @@
                 var basis = last && !last.isPenalty ? Math.abs(last.xp || 0) : 0;
                 var bonus = Math.round(basis * mult);
                 if (bonus > 0) {
-                    modesAwardXP(bonus, 'Inside your focus window — +' + bonus + ' XP', 'target');
+                    modesAwardXP(bonus, 'Focus Window — +' + bonus + ' XP', 'target');
                     a.bonusXP = (a.bonusXP || 0) + bonus;
                     a.bonusCount = (a.bonusCount || 0) + 1;
                     dirty = true;
@@ -25954,6 +26336,13 @@
                 }
                 if (a.kind === 'insurance') {
                     var days = insuranceDaysOn(a);
+                    // The term runs out first. A run bought before terms
+                    // existed carries no endsDay and is left indefinite —
+                    // coverage already paid for is not taken back by a deploy.
+                    if (a.endsDay && modesToday() >= a.endsDay) {
+                        await insuranceFinish(a, days);
+                        return;
+                    }
                     if (days >= INSURANCE_CHECKIN_DAYS &&
                         modeDayDiff(a.lastCheckInDay || a.startedDay, modesToday()) >= INSURANCE_CHECKIN_DAYS) {
                         a.lastCheckInDay = modesToday();
@@ -25980,6 +26369,25 @@
             habitMaybeShowOverlay();
         }
 
+        // A term reaching its end is an ordinary mode ending: it goes out
+        // through modesEnd like any other, which is also what hands the
+        // covered activities their offsetFrom stamp, so the days the shield
+        // actually covered stay covered afterwards.
+        async function insuranceFinish(a, days) {
+            await modesEnd('completed', days + ' days of cover', {
+                resolution: {
+                    kind: 'insurance', outcome: 'won', title: 'Cover ended',
+                    headline: (a.termDays || days) + ' days',
+                    lines: (a.activities || []).map(function (x) {
+                        var act = gritFindActivity(x.activityId);
+                        return (x.activityName || 'Activity') + ' — streak ' + (act ? (act.streak || 0) : 0);
+                    }),
+                    note: 'The term is up, so the shield is off from today. Every day it ' +
+                          'already covered stays covered. Insure again whenever you want it back.'
+                }
+            });
+        }
+
         async function focusFinish(a) {
             // Spec §7 — one line for the whole window, carrying the bonus XP
             // already accumulated on the mode's own state. Logged before
@@ -25990,12 +26398,12 @@
                     kind: 'focus', outcome: 'won', title: 'Focus Window closed',
                     headline: '+' + (a.bonusXP || 0) + ' XP',
                     lines: [
-                        modeTimeLabel(a.windowStart) + ' – ' + modeTimeLabel(a.windowEnd),
                         a.targetDays + ' days',
-                        (a.bonusCount || 0) + ' completions inside the window'
+                        '+' + Math.round(FOCUS_MULTIPLIER * 100) + '% on everything logged',
+                        (a.bonusCount || 0) + ' boosted completions'
                     ],
-                    note: 'A fixed slot in the day, kept for ' + a.targetDays +
-                          ' days. That is the part that carries over.'
+                    note: a.targetDays + ' days of everything counting for a little more. ' +
+                          'The rhythm is the part that carries over.'
                 }
             });
         }
@@ -26467,7 +26875,10 @@
             var payout = {};
             payout[a] = 0; payout[b] = 0;
             if (aHit && bHit) {
-                var back = p.stake + Math.round(p.stake * MODE_WAGER_RETURN);
+                // Both clients compute this, and whichever notices first
+                // writes it, so it has to be a pure function of the document:
+                // durationDays is on the pact itself, never read from setup state.
+                var back = modeWagerPayoutFor(p.stake, p.durationDays);
                 payout[a] = back; payout[b] = back;
                 return { status: 'resolved', outcome: 'kept', failedBy: null,
                          resolvedAt: modesNow(), pot: 0, payout: payout };
@@ -26531,7 +26942,7 @@
             var note;
             if (kept) {
                 note = 'Both of you held it. Your ' + p.stake + ' Grit is back with ' +
-                       Math.round(p.stake * MODE_WAGER_RETURN) + ' on top.';
+                       (modeWagerPayoutFor(p.stake, p.durationDays) - p.stake) + ' on top.';
             } else if (iFailed && theyFailed) {
                 note = 'Neither of you got there. Both stakes are gone — that was the deal.';
             } else if (iFailed) {
@@ -26545,7 +26956,7 @@
             var res = {
                 kind: 'pact', outcome: kept ? 'won' : 'lost',
                 title: kept ? 'Pact kept' : 'Pact broken',
-                headline: kept ? '+' + (p.stake + Math.round(p.stake * MODE_WAGER_RETURN)) + ' Grit'
+                headline: kept ? '+' + modeWagerPayoutFor(p.stake, p.durationDays) + ' Grit'
                                : '−' + p.stake + ' Grit',
                 lines: lines, note: note
             };
@@ -27044,10 +27455,21 @@
         function insurancePanelHtml(a) {
             var m = modesState();
             var days = insuranceDaysOn(a);
+            var term = a.termDays || 0;
+            var left = term ? Math.max(0, modeDayDiff(modesToday(), a.endsDay)) : 0;
             return '<div class="md-metric">' +
                      '<span class="md-metric-n">' + days + '</span>' +
-                     '<span class="md-metric-of">days insured</span>' +
+                     '<span class="md-metric-of">' +
+                       (term ? 'of ' + term + ' days covered' : 'days insured') + '</span>' +
                    '</div>' +
+                   (term ? modeBarHtml(days, term, 'md-bar-blue') +
+                           '<div class="md-hrow-meta">' +
+                             '<span class="md-chip' + (left <= 3 ? ' md-chip-hot' : '') + '">' +
+                               (left > 0 ? left + ' day' + (left === 1 ? '' : 's') + ' left · ' +
+                                           modeDateLabel(a.endsDay)
+                                         : 'Term up') + '</span>' +
+                           '</div>'
+                         : '') +
                    (a.activities || []).map(function (x) {
                        var act = gritFindActivity(x.activityId);
                        var held = (m && m.streakOffsets[String(x.activityId)]) || 0;
@@ -27064,7 +27486,9 @@
                                 '</div>' +
                               '</div>';
                    }).join('') +
-                   '<p class="md-note">Missing costs nothing. Logging still counts as it always did.</p>';
+                   '<p class="md-note">Missing costs nothing. Logging still counts as it always did.' +
+                     (a.termDays ? ' Cover lapses when the term is up — nothing renews on its own.' : '') +
+                   '</p>';
         }
 
         function stakePanelHtml(a) {
@@ -27092,28 +27516,23 @@
                                    modeDateLabel(stakeEndDay(a))
                                  : 'Window closed') + '</span>' +
                      '<span class="md-chip">' + phIcon('diamond', { weight: 'fill', lead: true }) + a.wager + ' staked</span>' +
-                     '<span class="md-chip">Win ' + phIcon('diamond', { weight: 'fill', lead: true }) + (a.wager + Math.round(a.wager * MODE_WAGER_RETURN)) + '</span>' +
+                     '<span class="md-chip">Win ' + phIcon('diamond', { weight: 'fill', lead: true }) + modeWagerPayoutFor(a.wager, a.days) + '</span>' +
                    '</div>' +
                    '<p class="md-note">All or nothing. One target short is the same as none.</p>';
         }
 
         function focusPanelHtml(a) {
-            var nowMins = modeMinutesNow();
-            var s = modeMins(a.windowStart), e = modeMins(a.windowEnd);
-            var open = s !== null && e !== null && modeInWindow(s, e, nowMins, 0, 0);
             return '<div class="md-metric">' +
                      '<span class="md-metric-n">' + (a.daysElapsed || 0) + '</span>' +
                      '<span class="md-metric-of">of ' + a.targetDays + ' days</span>' +
                    '</div>' +
                    modeBarHtml(a.daysElapsed || 0, a.targetDays, 'md-bar-blue') +
                    '<div class="md-hrow-meta">' +
-                     '<span class="md-chip' + (open ? ' md-chip-done' : '') + '">' +
-                       modeTimeLabel(a.windowStart) + ' – ' + modeTimeLabel(a.windowEnd) +
-                       (open ? ' · open now' : '') + '</span>' +
-                     '<span class="md-chip">+' + Math.round(FOCUS_MULTIPLIER * 100) + '% XP inside</span>' +
+                     '<span class="md-chip md-chip-done">Open all day</span>' +
+                     '<span class="md-chip">+' + Math.round(FOCUS_MULTIPLIER * 100) + '% XP</span>' +
                      '<span class="md-chip">' + (a.bonusCount || 0) + ' boosted · +' + (a.bonusXP || 0) + ' XP</span>' +
                    '</div>' +
-                   '<p class="md-note">Anything logged inside the window earns it — not tied to one activity.</p>';
+                   '<p class="md-note">Anything you log earns it, whenever you log it — not tied to one activity.</p>';
         }
 
         // The two-column head stays the headline — one bar a side, so the
@@ -27131,6 +27550,12 @@
             var theirItems = p ? pactItems(p, a.partnerUid) : [];
             var notStarted = a.windowStartsAt && modesNow() < a.windowStartsAt;
             var left = a.endsAt ? Math.max(0, Math.ceil((a.endsAt - modesNow()) / 86400000)) : 0;
+            var stage = pactStageOf(p, a);
+            var stageNote = notStarted
+                ? 'Both sides are set. It starts tomorrow and runs ' +
+                  (p ? p.durationDays : left) + ' days.'
+                : 'Running. ' + left + ' day' + (left === 1 ? '' : 's') +
+                  ' left for both of you.';
 
             function sideLabel(items) {
                 if (!items.length) return '—';
@@ -27138,7 +27563,8 @@
                 return items.length + ' activities';
             }
 
-            return '<div class="md-pact">' +
+            return pactStageHtml(stage, stageNote) +
+                   '<div class="md-pact">' +
                      '<div class="md-pact-side">' +
                        '<div class="md-pact-who">You</div>' +
                        '<div class="md-pact-act">' + modeEsc(sideLabel(myItems)) + '</div>' +
@@ -27169,7 +27595,10 @@
                    }).join('') +
                    '<div class="md-hrow-meta">' +
                      '<span class="md-chip">' + (notStarted ? 'Starts tomorrow' : left + ' day' + (left === 1 ? '' : 's') + ' left') + '</span>' +
-                     '<span class="md-chip">' + phIcon('diamond', { weight: 'fill', lead: true }) + PACT_WAGER + ' each</span>' +
+                     '<span class="md-chip">' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                       (p ? p.stake : PACT_WAGER) + ' each</span>' +
+                     '<span class="md-chip">Win ' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                       modeWagerPayoutFor(p ? p.stake : PACT_WAGER, p ? p.durationDays : PACT_MIN_DAYS) + '</span>' +
                    '</div>' +
                    '<p class="md-note">If either of you falls short, it breaks for both.</p>';
         }
@@ -27523,8 +27952,16 @@
             return el;
         }
 
-        function modeSheetHead(title, eyebrow) {
-            return '<div class="modal-header pl-modal-header">' +
+        // `back` is the call that returns to the previous step. A sheet that
+        // has one gets an arrow beside the title: the two-step flows (spec §4)
+        // would otherwise strand the user, since the only other control in the
+        // header throws the whole setup away.
+        function modeSheetHead(title, eyebrow, back) {
+            return '<div class="modal-header pl-modal-header' + (back ? ' md-head-back' : '') + '">' +
+                     (back ? '<button class="md-back-btn" type="button" onclick="' + back + '" aria-label="Back">' +
+                               '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
+                             '</button>'
+                           : '') +
                      '<div>' +
                        (eyebrow ? '<div class="pl-modal-eyebrow">' + modeEsc(eyebrow) + '</div>' : '') +
                        '<h3 class="modal-title">' + modeEsc(title) + '</h3></div>' +
@@ -27532,6 +27969,18 @@
                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
                      '</button></div>';
         }
+
+        // ── Step navigation (spec §4) ─────────────────────────────────────
+        // Every picker-based mode runs picker-step → settings-step, reusing the
+        // `step` field Habit Mode already had rather than inventing a second
+        // mechanism. Splitting them is the whole point: a picker and a settings
+        // panel stacked in one scroll region gave the sheet two scrollbars and
+        // made the commitment button unreachable on a phone.
+        window.modeStepTo = function (n) {
+            if (!_modeSetup) return;
+            _modeSetup.step = n;
+            modeRerenderSetup();
+        };
 
         // `note` is the reason the commitment is unavailable. It rides the
         // footer rather than the body, because a disabled button whose reason
@@ -27549,6 +27998,87 @@
         }
 
         function modeAffordable(cost) { return (gritBalance() || 0) >= cost; }
+
+        // ── Optimistic activation (spec §8) ───────────────────────────────
+        // Every *Start used to `await modesActivate(...)` — a Grit spend plus a
+        // Firestore round-trip — before the sheet closed, the theme changed or
+        // the page repainted. On a slow connection that is a second of a dead
+        // button after the one tap in the whole mode that is supposed to feel
+        // decisive.
+        //
+        // Same shape as the Tech Tree's node reveal: commit the UI now, let the
+        // write land behind it, and put everything back if it fails. What is
+        // NOT changed is the accounting — modesActivate still goes through
+        // gritPurchase, which unwinds the balance and the ledger entry itself
+        // when the save fails (Grit spec §5.3, persistence precedes the grant).
+        // So a failed activation costs nothing; it just has to un-say what the
+        // UI already said.
+        //
+        // `payload`, `cost` and `reason` are modesActivate's. `toast` is the
+        // line shown once the mode is really on.
+        function modeStartOptimistic(kind, payload, cost, reason, toast, opts) {
+            opts = opts || {};
+            // Everything cheap and synchronous happens first, so a refusal
+            // never reaches the optimistic half below.
+            if (modesActive()) {
+                showToast('Only one mode at a time for now — end the running one first.', 'olive');
+                return;
+            }
+            if (!modeAffordable(cost)) {
+                showToast('You need ' + (cost - (gritBalance() || 0)) + ' more Grit for that.', 'red');
+                return;
+            }
+            // A Pact invite waiting on an answer already has its stake
+            // escrowed, so it is a mode in waiting. modesActivate refuses on
+            // it too; catching it here keeps the refusal in the sheet instead
+            // of closing and reopening it.
+            var pending = (_pactCache.list || []).filter(function (p) {
+                return p.status === 'pending' && (p.participants || []).indexOf(modesUid()) !== -1;
+            });
+            if (pending.length) {
+                showToast('You have a Pact waiting on an answer. ' +
+                          'Withdraw it, or wait for them, before starting another mode.', 'olive');
+                return;
+            }
+            if (typeof opts.validate === 'function' && opts.validate() === false) return;
+
+            // Hold what it takes to put the sheet back exactly as it was.
+            var setup = _modeSetup;
+            // The sheet and the dead button are the lag the user actually
+            // feels, so those go now. The TOAST waits for the write: "Berserk
+            // — 400 XP in 2h" followed by "could not start that" is worse than
+            // a beat of silence, and the theme is modesActivate's to apply
+            // once the mode really exists.
+            modeCloseSheet();
+            modesRenderPage();
+
+            modesActivate(kind, payload, cost, reason).then(function (res) {
+                if (res && res.ok) {
+                    if (toast) showToast(toast, opts.tone || 'green', null, opts.icon || null);
+                    // Repainted again because the mode object only exists now,
+                    // so the panel finally has something real to draw.
+                    modesRenderPage();
+                    return;
+                }
+                modeStartRollback(setup, res && res.message);
+            }).catch(function (e) {
+                modeStartRollback(setup, modeErrText(e));
+            });
+        }
+
+        // Put the mode UI back the way it was before the optimistic close.
+        function modeStartRollback(setup, message) {
+            showToast(message || 'Could not start that mode. Nothing was spent.', 'red');
+            try { modesApplyTheme(); } catch (e) {}
+            try { modesRefreshBanner(); } catch (e) {}
+            try { modesRenderPage(); } catch (e) {}
+            // Reopening on the step they committed from beats dropping them at
+            // the start of a picker they already filled in.
+            if (setup) {
+                _modeSetup = setup;
+                try { modeRerenderSetup(); } catch (e) { _modeSetup = null; }
+            }
+        }
 
         function modeCostLine(cost) {
             var bal = gritBalance() || 0;
@@ -27569,10 +28099,9 @@
             if (kind === 'habit')     { _modeSetup.targetDays = HABIT_DEFAULT_DAYS; habitRenderSetup(); }
             if (kind === 'berserk')   { _modeSetup.hours = 2; berserkRenderSetup(); }
             if (kind === 'recovery')  { recoveryRenderSetup(); }
-            if (kind === 'insurance') { insuranceRenderSetup(); }
+            if (kind === 'insurance') { _modeSetup.cycles = INSURANCE_MIN_CYCLES; insuranceRenderSetup(); }
             if (kind === 'stake')     { _modeSetup.days = STAKE_MIN_DAYS; _modeSetup.wager = MODE_WAGER_MIN; stakeRenderSetup(); }
-            if (kind === 'focus')     { _modeSetup.windowStart = '18:00'; _modeSetup.windowEnd = '20:00';
-                                        _modeSetup.days = 14; focusRenderSetup(); }
+            if (kind === 'focus')     { _modeSetup.days = 14; focusRenderSetup(); }
             if (kind === 'pact')      {
                 _modeSetup.days = 7; _modeSetup.targets = {};
                 // Render first so the sheet is never blank, then fill the names
@@ -27793,14 +28322,24 @@
                 out.berserkEnds   = 'until ' + modeHourLabel(s.hours);
             }
             if (s.kind === 'stake') {
-                out.stakePayout = String(s.wager + Math.round(s.wager * MODE_WAGER_RETURN));
+                out.stakePayout = String(modeWagerPayoutFor(s.wager, s.days));
+                out.stakeReturn = modeWagerReturnPct(s.days) + '%';
                 out.stakeEnds   = 'ends ' + modeDateLabel(modeAddDays(modesToday(), s.days));
             }
             if (s.kind === 'focus') {
                 out.focusEnds = 'ends ' + modeDateLabel(modeAddDays(modesToday(), s.days));
+                out.focusCost = String(focusCostFor(s.days));
+            }
+            if (s.kind === 'insurance') {
+                var insDays = insuranceTermDays(s.cycles);
+                out.insCost  = String(insuranceCostFor(s.cycles));
+                out.insTerm  = insDays + ' days';
+                out.insEnds  = 'ends ' + modeDateLabel(modeAddDays(modesToday(), insDays));
             }
             if (s.kind === 'pact') {
-                out.pactEnds = 'ends ' + modeDateLabel(modeAddDays(modesToday(), s.days + 1));
+                out.pactEnds   = 'ends ' + modeDateLabel(modeAddDays(modesToday(), s.days + 1));
+                out.pactReturn = modeWagerReturnPct(s.days) + '%';
+                out.pactWin    = String(modeWagerPayoutFor(PACT_WAGER, s.days));
             }
             return out;
         }
@@ -27815,11 +28354,18 @@
         function modeStartBlocked() {
             var s = _modeSetup;
             if (!s) return true;
-            if (s.kind === 'habit')     return s.step === 0 ? s.picks.length === 0 : !modeAffordable(MODE_COST.habit);
+            // On a picker step the only question is whether anything is picked
+            // — the cost is not being committed yet, so an unaffordable mode
+            // must still let the user get as far as seeing the price.
+            if (s.step === 0 && s.kind !== 'berserk' && s.kind !== 'focus') {
+                if (s.kind === 'pact') return !s.partnerUid || !s.picks.length;
+                return s.picks.length === 0;
+            }
+            if (s.kind === 'habit')     return !modeAffordable(MODE_COST.habit);
             if (s.kind === 'berserk')   return !modeAffordable(MODE_COST.berserk);
             if (s.kind === 'recovery')  return !s.picks.length || !modeAffordable(MODE_COST.recovery);
-            if (s.kind === 'insurance') return !s.picks.length || !modeAffordable(MODE_COST.insurance);
-            if (s.kind === 'focus')     return !modeAffordable(MODE_COST.focus);
+            if (s.kind === 'insurance') return !s.picks.length || !modeAffordable(insuranceCostFor(s.cycles));
+            if (s.kind === 'focus')     return !modeAffordable(focusCostFor(s.days));
             if (s.kind === 'stake') {
                 var total = s.picks.reduce(function (n, id) { return n + ((s.targets || {})[id] || 1); }, 0);
                 return !s.picks.length || s.days < STAKE_MIN_DAYS || total < STAKE_MIN_TOTAL ||
@@ -27955,7 +28501,7 @@
             habitRenderSetup();
         };
 
-        window.habitStart = async function () {
+        window.habitStart = function () {
             var s = _modeSetup;
             if (!s) return;
             var acts = modeEligibleActivities();
@@ -27978,15 +28524,12 @@
                     milestonesShown: [], overlayDismissedDay: null
                 };
             });
-            var res = await modesActivate('habit', {
+            modeStartOptimistic('habit', {
                 habits: habits, targetDays: s.targetDays,
                 daysElapsed: 0, lastCountedDay: modesToday()
-            }, MODE_COST.habit, 'mode_habit');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Habit Mode is on — ' + habits.length + ' habit' + (habits.length === 1 ? '' : 's') +
-                      ' for ' + s.targetDays + ' days', 'green');
-            modesRenderPage();
+            }, MODE_COST.habit, 'mode_habit',
+               'Habit Mode is on — ' + habits.length + ' habit' + (habits.length === 1 ? '' : 's') +
+               ' for ' + s.targetDays + ' days');
         };
 
         function habitOpenResume() {
@@ -28018,7 +28561,7 @@
             modeSheet(html);
         }
 
-        window.habitResume = async function () {
+        window.habitResume = function () {
             var m = modesState();
             if (!m || !m.suspendedHabit) return;
             if (m.active) { showToast('End the running mode first.', 'olive'); return; }
@@ -28028,12 +28571,16 @@
             p.lastCountedDay = modesToday();
             m.active = p;
             m.suspendedHabit = null;
-            try { await saveUserData(); } catch (e) {}
-            try { await modesSyncNotifications(); } catch (e) {}
+            // Resuming costs nothing, so there is no purchase to unwind and
+            // nothing to roll back: the state change is already in memory.
+            // Show it, then persist behind the repaint.
             modeCloseSheet();
             showToast('Habit Mode resumed at day ' + (p.daysElapsed || 0), 'green');
+            modesApplyTheme();
             modesRenderPage();
             modesRefreshBanner();
+            saveUserData().catch(function () {});
+            modesSyncNotifications().catch(function () {});
         };
 
         window.habitStartFresh = function () {
@@ -28085,12 +28632,12 @@
             modeSyncLive();
         }
 
-        window.berserkStart = async function () {
+        window.berserkStart = function () {
             var s = _modeSetup;
             if (!s) return;
             var now = modesNow();
             var target = berserkTargetFor(s.hours);
-            var res = await modesActivate('berserk', {
+            modeStartOptimistic('berserk', {
                 hours: s.hours,
                 startedAtMs: now,
                 endsAt: now + s.hours * 3600000,
@@ -28101,11 +28648,9 @@
                 // session as playing by the two-condition rule at all.
                 baseXpEarned: 0, completionsCount: 0,
                 resolved: false
-            }, MODE_COST.berserk, 'mode_berserk');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Berserk — ' + target.toLocaleString() + ' XP in ' + s.hours + 'h', 'red');
-            modesRenderPage();
+            }, MODE_COST.berserk, 'mode_berserk',
+               'Berserk — ' + target.toLocaleString() + ' XP in ' + s.hours + 'h',
+               { tone: 'red' });
         };
 
         // ══ RECOVERY ══════════════════════════════════════════════════════
@@ -28116,24 +28661,36 @@
             var picked = s.picks.filter(function (id) {
                 return acts.some(function (a) { return a.id === id; });
             });
-            var html = modeSheetHead('Recovery Mode', 'Return');
-            html += '<div class="modal-body md-body">' +
+
+            if (s.step === 0) {
+                modeSheet(modeSheetHead('Recovery Mode', 'Return') +
+                    '<div class="modal-body md-body">' +
                       '<p class="md-lede">Each pick climbs an extra step per completion until it is back at its own peak.</p>' +
                       modePickerHtml(RECOVERY_MAX_ACTS, { streakOnly: true, showPeak: true, needPeak: true }) +
-                      (picked.length ? '<div class="md-summary">' + picked.map(function (id) {
-                          var a = acts.filter(function (x) { return x.id === id; })[0] || {};
-                          var ceiling = Math.max(a.bestStreak || 0, a.streak || 0, 1);
-                          return '<div class="md-summary-row">' + modeEsc(a.name) + ' — now ' + (a.streak || 0) +
-                                 ', peak <strong>' + ceiling + '</strong></div>';
-                      }).join('') + '</div>' : '') +
                     '</div>' +
-                    modeSheetFoot('Start recovering', 'recoveryStart()',
-                                  !picked.length || !modeAffordable(cost), modeCostLine(cost));
-            modeSheet(html);
+                    modeSheetFoot('Next', 'modeStepTo(1)', !picked.length, modeCostLine(cost)));
+                modeSyncLive();
+                return;
+            }
+
+            modeSheet(modeSheetHead('Recovery Mode', 'Return', 'modeStepTo(0)') +
+                '<div class="modal-body md-body">' +
+                  '<p class="md-lede">Each completion is worth two steps until the streak is back where it was.</p>' +
+                  '<div class="md-summary">' + picked.map(function (id) {
+                      var a = acts.filter(function (x) { return x.id === id; })[0] || {};
+                      var ceiling = Math.max(a.bestStreak || 0, a.streak || 0, 1);
+                      return '<div class="md-summary-row"><strong>' + modeEsc(a.name) + '</strong> — now ' +
+                             (a.streak || 0) + ', peak <strong>' + ceiling + '</strong></div>';
+                  }).join('') + '</div>' +
+                  '<p class="md-hint">It ends itself the moment every one of them is back at its own peak — ' +
+                    'there is no window to run out.</p>' +
+                '</div>' +
+                modeSheetFoot('Start recovering', 'recoveryStart()',
+                              !picked.length || !modeAffordable(cost), modeCostLine(cost)));
             modeSyncLive();
         }
 
-        window.recoveryStart = async function () {
+        window.recoveryStart = function () {
             var s = _modeSetup;
             if (!s || !s.picks.length) return;
             var list = [];
@@ -28148,31 +28705,62 @@
                 });
             });
             if (!list.length) { showToast('Those activities are no longer available.', 'red'); return; }
-            var res = await modesActivate('recovery', { activities: list }, MODE_COST.recovery, 'mode_recovery');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Recovery Mode is on — chasing your own peak', 'green');
-            modesRenderPage();
+            modeStartOptimistic('recovery', { activities: list }, MODE_COST.recovery, 'mode_recovery',
+                'Recovery Mode is on — chasing your own peak');
         };
 
         // ══ INSURANCE ═════════════════════════════════════════════════════
         function insuranceRenderSetup() {
             var s = _modeSetup;
-            var cost = MODE_COST.insurance;
-            var html = modeSheetHead('Insurance Mode', 'Shield');
-            html += '<div class="modal-body md-body">' +
+            if (!s.cycles) s.cycles = INSURANCE_MIN_CYCLES;
+            var cost = insuranceCostFor(s.cycles);
+            var termDays = insuranceTermDays(s.cycles);
+
+            if (s.step === 0) {
+                modeSheet(modeSheetHead('Insurance Mode', 'Shield') +
+                    '<div class="modal-body md-body">' +
                       '<p class="md-lede">While it runs, missing a day costs these nothing. Logging still counts.</p>' +
                       modePickerHtml(INSURANCE_MAX_ACTS, { streakOnly: true }) +
-                      '<p class="md-hint">No end date — it runs until you turn it off, and checks in after ' +
-                        INSURANCE_CHECKIN_DAYS + ' days.</p>' +
                     '</div>' +
-                    modeSheetFoot('Insure them', 'insuranceStart()',
-                                  !s.picks.length || !modeAffordable(cost), modeCostLine(cost));
-            modeSheet(html);
+                    modeSheetFoot('Next', 'modeStepTo(1)', !s.picks.length, modeCostLine(cost)));
+                modeSyncLive();
+                return;
+            }
+
+            modeSheet(modeSheetHead('Insurance Mode', 'Shield', 'modeStepTo(0)') +
+                '<div class="modal-body md-body">' +
+                  '<label class="md-label">Cover for</label>' +
+                  // The unit is a fixed phrase rather than a pluralised word:
+                  // only [data-md-live] spans are patched mid-drag, so a word
+                  // that changes with the number would read "2 month" until
+                  // the user let go of the slider.
+                  modeSliderHtml('cycles', INSURANCE_MIN_CYCLES, INSURANCE_MAX_CYCLES, s.cycles, {
+                      unit: '× ' + INSURANCE_CHECKIN_DAYS + ' days', side: 'insEnds',
+                      label: 'Coverage term',
+                      loLabel: INSURANCE_CHECKIN_DAYS + ' days',
+                      hiLabel: (INSURANCE_MAX_CYCLES * INSURANCE_CHECKIN_DAYS) + ' days' }) +
+                  '<div class="md-stakes">' +
+                    '<div class="md-stake"><span class="md-stake-k">Covered</span>' +
+                      '<span class="md-stake-v" data-md-live="insTerm">' + termDays + ' days</span></div>' +
+                    '<div class="md-stake md-stake-win"><span class="md-stake-k">Costs</span>' +
+                      '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                        '<span data-md-live="insCost">' + cost + '</span></span></div>' +
+                  '</div>' +
+                  '<div class="md-summary">' + s.picks.map(function (id) {
+                      var a = gritFindActivity(id) || {};
+                      return '<div class="md-summary-row"><strong>' + modeEsc(a.name || 'Activity') +
+                             '</strong> — streak ' + (a.streak || 0) + '</div>';
+                  }).join('') + '</div>' +
+                  '<p class="md-hint">Coverage lapses on its own when the term is up — nothing renews ' +
+                    'silently, and you can insure again afterwards. It checks in every ' +
+                    INSURANCE_CHECKIN_DAYS + ' days.</p>' +
+                '</div>' +
+                modeSheetFoot('Insure them', 'insuranceStart()',
+                              !s.picks.length || !modeAffordable(cost), modeCostLine(cost)));
             modeSyncLive();
         }
 
-        window.insuranceStart = async function () {
+        window.insuranceStart = function () {
             var s = _modeSetup;
             if (!s || !s.picks.length) return;
             var list = [];
@@ -28182,13 +28770,18 @@
                 list.push({ activityId: String(id), activityName: act.name || 'Activity' });
             });
             if (!list.length) { showToast('Those activities are no longer available.', 'red'); return; }
-            var res = await modesActivate('insurance', {
-                activities: list, lastCheckInDay: null
-            }, MODE_COST.insurance, 'mode_insurance');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Insurance is on — ' + list.length + ' activity' + (list.length === 1 ? '' : 's') + ' covered', 'green');
-            modesRenderPage();
+            var cycles = Math.max(INSURANCE_MIN_CYCLES, Math.min(INSURANCE_MAX_CYCLES, s.cycles || INSURANCE_MIN_CYCLES));
+            var termDays = insuranceTermDays(cycles);
+            modeStartOptimistic('insurance', {
+                activities: list, lastCheckInDay: null,
+                // The term is stored as both the count and the day it runs out,
+                // so the expiry check is a date comparison rather than arithmetic
+                // that has to agree with the slider months later.
+                termCycles: cycles, termDays: termDays,
+                endsDay: modeAddDays(modesToday(), termDays)
+            }, insuranceCostFor(cycles), 'mode_insurance',
+               'Insurance is on — ' + list.length + (list.length === 1 ? ' activity' : ' activities') +
+               ' covered for ' + termDays + ' days');
         };
 
         // ══ STAKE ═════════════════════════════════════════════════════════
@@ -28196,46 +28789,61 @@
             var s = _modeSetup;
             if (!s.targets) s.targets = {};
             var acts = modeEligibleActivities();
-            var payout = s.wager + Math.round(s.wager * MODE_WAGER_RETURN);
 
-            var html = modeSheetHead('Stake Mode', 'Wager');
-            html += '<div class="modal-body md-body">' +
-                      '<p class="md-lede">Hit every target inside the window and the stake comes back with 30% on top.</p>' +
+            if (s.step === 0) {
+                modeSheet(modeSheetHead('Stake Mode', 'Wager') +
+                    '<div class="modal-body md-body">' +
+                      '<p class="md-lede">Bet Grit on hitting every target. Pick what you are putting on the line.</p>' +
                       modePickerHtml(STAKE_MAX_ACTS, {}) +
-                      (s.picks.length ? '<div class="md-targets">' + s.picks.map(function (id) {
-                          var a = acts.filter(function (x) { return x.id === id; })[0] || {};
-                          var v = s.targets[id] || 1;
-                          return '<div class="md-target-row">' +
-                                   '<span class="md-target-name">' + modeEsc(a.name || '') + '</span>' +
-                                   modeStepperHtml('stakeBump(\'' + modeEsc(id) + '\',-1)', v,
-                                                   'stakeBump(\'' + modeEsc(id) + '\',1)',
-                                                   { atMin: v <= 1, atMax: v >= 200 }) +
-                                 '</div>';
-                      }).join('') + '</div>' : '') +
-
-                      '<label class="md-label">Window</label>' +
-                      modeSliderHtml('days', STAKE_MIN_DAYS, 60, s.days, {
-                          unit: 'days', side: 'stakeEnds', label: 'Days',
-                          loLabel: STAKE_MIN_DAYS + ' days', hiLabel: '60 days' }) +
-
-                      '<label class="md-label">Stake</label>' +
-                      '<div class="md-wager">' +
-                        [25, 50, 75, 100].map(function (w) {
-                            return '<button type="button" class="md-wager-btn' + (s.wager === w ? ' is-on' : '') + '" ' +
-                                   'aria-pressed="' + (s.wager === w ? 'true' : 'false') + '" ' +
-                                   'onclick="modeSetNum(\'wager\',' + w + ',' + MODE_WAGER_MIN + ',' + MODE_WAGER_MAX + ')">' + phIcon('diamond', { weight: 'fill', lead: true }) + w + '</button>';
-                        }).join('') +
-                      '</div>' +
-                      '<div class="md-stakes">' +
-                        '<div class="md-stake md-stake-win"><span class="md-stake-k">All targets hit</span>' +
-                          '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) +
-                            '<span data-md-live="stakePayout">' + payout + '</span></span></div>' +
-                        '<div class="md-stake md-stake-lose"><span class="md-stake-k">One short</span><span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) + '0</span></div>' +
-                      '</div>' +
                     '</div>' +
-                    modeSheetFoot('Place the stake', 'stakeStart()', modeStartBlocked(),
-                                  modeCostLine(s.wager), modeWarnHtml());
-            modeSheet(html);
+                    modeSheetFoot('Next', 'modeStepTo(1)', !s.picks.length, modeCostLine(s.wager)));
+                modeSyncLive();
+                return;
+            }
+
+            var payout = modeWagerPayoutFor(s.wager, s.days);
+            modeSheet(modeSheetHead('Stake Mode', 'Wager', 'modeStepTo(0)') +
+                '<div class="modal-body md-body">' +
+                  '<p class="md-lede">Hit every target inside the window and the stake comes back with ' +
+                    '<span data-md-live="stakeReturn">' + modeWagerReturnPct(s.days) + '%</span> on top.</p>' +
+
+                  '<label class="md-label">Targets</label>' +
+                  '<div class="md-targets">' + s.picks.map(function (id) {
+                      var a = acts.filter(function (x) { return x.id === id; })[0] || {};
+                      var v = s.targets[id] || 1;
+                      return '<div class="md-target-row">' +
+                               '<span class="md-target-name">' + modeEsc(a.name || '') + '</span>' +
+                               modeStepperHtml('stakeBump(\'' + modeEsc(id) + '\',-1)', v,
+                                               'stakeBump(\'' + modeEsc(id) + '\',1)',
+                                               { atMin: v <= 1, atMax: v >= 200 }) +
+                             '</div>';
+                  }).join('') + '</div>' +
+
+                  '<label class="md-label">Window</label>' +
+                  modeSliderHtml('days', STAKE_MIN_DAYS, STAKE_MAX_DAYS, s.days, {
+                      unit: 'days', side: 'stakeEnds', label: 'Days',
+                      loLabel: STAKE_MIN_DAYS + ' days', hiLabel: STAKE_MAX_DAYS + ' days' }) +
+                  '<p class="md-hint">The longer the window, the more it pays back — ' +
+                    MODE_WAGER_RETURN_PCT_MIN + '% at ' + STAKE_MIN_DAYS + ' days, ' +
+                    MODE_WAGER_RETURN_PCT_MAX + '% at ' + STAKE_MAX_DAYS + '.</p>' +
+
+                  '<label class="md-label">Stake</label>' +
+                  '<div class="md-wager">' +
+                    [25, 50, 75, 100].map(function (w) {
+                        return '<button type="button" class="md-wager-btn' + (s.wager === w ? ' is-on' : '') + '" ' +
+                               'aria-pressed="' + (s.wager === w ? 'true' : 'false') + '" ' +
+                               'onclick="modeSetNum(\'wager\',' + w + ',' + MODE_WAGER_MIN + ',' + MODE_WAGER_MAX + ')">' + phIcon('diamond', { weight: 'fill', lead: true }) + w + '</button>';
+                    }).join('') +
+                  '</div>' +
+                  '<div class="md-stakes">' +
+                    '<div class="md-stake md-stake-win"><span class="md-stake-k">All targets hit</span>' +
+                      '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                        '<span data-md-live="stakePayout">' + payout + '</span></span></div>' +
+                    '<div class="md-stake md-stake-lose"><span class="md-stake-k">One short</span><span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) + '0</span></div>' +
+                  '</div>' +
+                '</div>' +
+                modeSheetFoot('Place the stake', 'stakeStart()', modeStartBlocked(),
+                              modeCostLine(s.wager), modeWarnHtml()));
             modeSyncLive();
         }
 
@@ -28247,7 +28855,7 @@
             stakeRenderSetup();
         };
 
-        window.stakeStart = async function () {
+        window.stakeStart = function () {
             var s = _modeSetup;
             if (!s || !s.picks.length) return;
             var items = [];
@@ -28269,36 +28877,34 @@
                           STAKE_MIN_TOTAL + ' completions.', 'red');
                 return;
             }
-            var res = await modesActivate('stake', {
+            modeStartOptimistic('stake', {
                 items: items, days: s.days, wager: s.wager, resolved: false
-            }, s.wager, 'mode_stake_wager');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Stake placed — ' + s.wager + ' Grit on ' + total + ' completions in ' + s.days + ' days', 'green', null, 'diamond');
-            modesRenderPage();
+            }, s.wager, 'mode_stake_wager',
+               'Stake placed — ' + s.wager + ' Grit on ' + total + ' completions in ' + s.days + ' days',
+               { icon: 'diamond' });
         };
 
         // ══ FOCUS WINDOW ══════════════════════════════════════════════════
         function focusRenderSetup() {
             var s = _modeSetup;
-            var cost = MODE_COST.focus;
+            var cost = focusCostFor(s.days);
             var html = modeSheetHead('Focus Window', 'Rhythm');
             html += '<div class="modal-body md-body">' +
-                      '<p class="md-lede">One slot a day. Anything logged inside it earns +' +
-                        Math.round(FOCUS_MULTIPLIER * 100) + '% XP.</p>' +
-                      '<label class="md-label">Every day, between</label>' +
-                      '<div class="md-time-row">' +
-                        '<input type="time" class="md-input md-time" data-md-focus="ws" value="' + modeEsc(s.windowStart) + '" ' +
-                          'onchange="modeSetField(\'windowStart\',this.value)">' +
-                        '<span class="md-time-and">and</span>' +
-                        '<input type="time" class="md-input md-time" data-md-focus="we" value="' + modeEsc(s.windowEnd) + '" ' +
-                          'onchange="modeSetField(\'windowEnd\',this.value)">' +
-                      '</div>' +
+                      '<p class="md-lede">Everything you log earns +' +
+                        Math.round(FOCUS_MULTIPLIER * 100) + '% XP, all day, for as long as it runs.</p>' +
                       '<label class="md-label">For</label>' +
                       modeSliderHtml('days', FOCUS_MIN_DAYS, FOCUS_MAX_DAYS, s.days, {
                           unit: 'days', side: 'focusEnds', label: 'Days',
                           loLabel: FOCUS_MIN_DAYS + ' days', hiLabel: FOCUS_MAX_DAYS + ' days' }) +
-                      '<p class="md-hint">The slot never moves — that is the mechanism. Bonuses never stack.</p>' +
+                      '<div class="md-stakes">' +
+                        '<div class="md-stake"><span class="md-stake-k">Boost</span>' +
+                          '<span class="md-stake-v">+' + Math.round(FOCUS_MULTIPLIER * 100) + '% XP</span></div>' +
+                        '<div class="md-stake md-stake-win"><span class="md-stake-k">Costs</span>' +
+                          '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                            '<span data-md-live="focusCost">' + cost + '</span></span></div>' +
+                      '</div>' +
+                      '<p class="md-hint">The longer you commit, the more it costs up front. ' +
+                        'The boost is the same either way, and bonuses never stack.</p>' +
                     '</div>' +
                     modeSheetFoot('Open the window', 'focusStart()', !modeAffordable(cost), modeCostLine(cost));
             modeSheet(html);
@@ -28308,25 +28914,71 @@
         window.focusStart = async function () {
             var s = _modeSetup;
             if (!s) return;
-            if (modeMins(s.windowStart) === null || modeMins(s.windowEnd) === null) {
-                showToast('Pick a start and an end time.', 'red'); return;
-            }
-            if (modeMins(s.windowStart) === modeMins(s.windowEnd)) {
-                showToast('The window needs to be longer than nothing.', 'red'); return;
-            }
-            var res = await modesActivate('focus', {
-                windowStart: s.windowStart, windowEnd: s.windowEnd,
+            var cost = focusCostFor(s.days);
+            modeStartOptimistic('focus', {
                 targetDays: s.days, daysElapsed: 0, lastCountedDay: modesToday(),
                 bonusXP: 0, bonusCount: 0
-            }, MODE_COST.focus, 'mode_focus');
-            if (!res.ok) { showToast(res.message, 'red'); return; }
-            modeCloseSheet();
-            showToast('Focus Window open — ' + modeTimeLabel(s.windowStart) + ' to ' +
-                      modeTimeLabel(s.windowEnd), 'green');
-            modesRenderPage();
+            }, cost, 'mode_focus',
+               'Focus Window open — +' + Math.round(FOCUS_MULTIPLIER * 100) + '% XP for ' + s.days + ' days');
         };
 
         // ══ PACT ══════════════════════════════════════════════════════════
+
+        // ── Lifecycle stage indicator (spec §6) ───────────────────────────
+        // A Pact is the only mode whose state depends on somebody else, so
+        // "what is happening and what happens next" is a real question every
+        // time it is opened — and until now the sheet answered it only by
+        // implication. The rail is the same five stages everywhere it appears,
+        // so the one that is lit is the whole answer.
+        const PACT_STAGES = [
+            { key: 'setup',    label: 'Setup' },
+            { key: 'invite',   label: 'Invite sent' },
+            { key: 'accepted', label: 'Accepted' },
+            { key: 'active',   label: 'Active' },
+            { key: 'resolved', label: 'Resolved' }
+        ];
+
+        function pactStageHtml(activeKey, note) {
+            var at = PACT_STAGES.findIndex(function (s) { return s.key === activeKey; });
+            if (at < 0) at = 0;
+            return '<div class="md-stages" role="list" aria-label="Pact progress">' +
+                     PACT_STAGES.map(function (s, i) {
+                         var cls = i < at ? ' is-done' : (i === at ? ' is-now' : '');
+                         return '<div class="md-stage' + cls + '" role="listitem"' +
+                                  (i === at ? ' aria-current="step"' : '') + '>' +
+                                  '<span class="md-stage-dot" aria-hidden="true"></span>' +
+                                  '<span class="md-stage-label">' + modeEsc(s.label) + '</span>' +
+                                '</div>';
+                     }).join('') +
+                   '</div>' +
+                   (note ? '<p class="md-stage-note">' + modeEsc(note) + '</p>' : '');
+        }
+
+        // Which stage a live pact document is in, from its own fields.
+        function pactStageOf(p, mode) {
+            if (!p) return 'setup';
+            if (p.status === 'resolved') return 'resolved';
+            if (p.status === 'pending')  return 'invite';
+            if (p.status === 'active') {
+                var startsAt = (mode && mode.windowStartsAt) || p.startedAt;
+                return (startsAt && modesNow() < startsAt) ? 'accepted' : 'active';
+            }
+            return 'setup';
+        }
+
+        // The win/loss numbers, in the shape Stake and Berserk already use, so
+        // both sides read the actual figures before committing rather than
+        // inferring them from a warning line.
+        function pactStakesHtml(stake, days) {
+            return '<div class="md-stakes">' +
+                     '<div class="md-stake md-stake-win"><span class="md-stake-k">Both of you hit it</span>' +
+                       '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) +
+                         '<span data-md-live="pactWin">' + modeWagerPayoutFor(stake, days) + '</span></span></div>' +
+                     '<div class="md-stake md-stake-lose"><span class="md-stake-k">Either falls short</span>' +
+                       '<span class="md-stake-v">' + phIcon('diamond', { weight: 'fill', lead: true }) + '0</span></div>' +
+                   '</div>';
+        }
+
         function pactRenderSetup() {
             var s = _modeSetup;
             var friends = (window.userData.friends || []);
@@ -28337,46 +28989,72 @@
                     '</div>');
                 return;
             }
-            var html = modeSheetHead('Pact Mode', 'Together');
-
+            // Who with? — the one question that has to come before everything
+            // else, since the rest of the sheet is a commitment to a person.
             if (!s.partnerUid) {
-                html += '<div class="modal-body md-body">' +
-                          '<p class="md-lede">Two people, two targets, one outcome. ' + phIcon('diamond', { weight: 'fill', lead: true }) + PACT_WAGER +
-                            ' each — if either falls short, both stakes go.</p>' +
-                          '<label class="md-label">Who with?</label>' +
-                          '<div class="md-picker">' + friends.map(function (u) {
-                              var p = (window._friendProfileCache || {})[u] || {};
-                              return '<button type="button" class="md-pick" ' +
-                                       'onclick="pactPickPartner(\'' + modeEsc(u) + '\')">' +
-                                       '<span class="md-pick-name">' + modeEsc(p.displayName || 'Adventurer') + '</span>' +
-                                       (p.level ? '<span class="md-pick-meta">Lv ' + p.level + '</span>' : '') +
-                                     '</button>';
-                          }).join('') + '</div>' +
-                        '</div>';
-            } else {
-                html += '<div class="modal-body md-body">' +
-                          '<div class="md-step">With</div>' +
-                          '<div class="md-step-name">' + modeEsc(giftFriendName(s.partnerUid)) + '</div>' +
-
-                          '<label class="md-label">Your activities</label>' +
-                          modePickerHtml(PACT_MAX_ACTS, {}) +
-                          pactTargetRowsHtml('pactBump') +
-                          '<p class="md-hint">They pick their own — it does not have to match, ' +
-                            'and it does not have to be the same number of things.</p>' +
-
-                          '<label class="md-label">Window</label>' +
-                          modeSliderHtml('days', PACT_MIN_DAYS, 60, s.days, {
-                              unit: 'days', side: 'pactEnds', label: 'Days',
-                              loLabel: PACT_MIN_DAYS + ' days', hiLabel: '60 days' }) +
-                          '<p class="md-hint">Starts the day after they accept, so you get the same window.</p>' +
-                        '</div>' +
-                        modeSheetFoot('Send the request', 'pactSend()',
-                                      modeStartBlocked(), modeCostLine(PACT_WAGER),
-                                      pactWarnHtml());
+                modeSheet(modeSheetHead('Pact Mode', 'Together') +
+                    '<div class="modal-body md-body">' +
+                      pactStageHtml('setup', 'Pick someone, set your side, then they set theirs.') +
+                      '<p class="md-lede">Two people, two targets, one outcome. ' + phIcon('diamond', { weight: 'fill', lead: true }) + PACT_WAGER +
+                        ' each — if either falls short, both stakes go.</p>' +
+                      '<label class="md-label">Who with?</label>' +
+                      '<div class="md-picker">' + friends.map(function (u) {
+                          var p = (window._friendProfileCache || {})[u] || {};
+                          return '<button type="button" class="md-pick" ' +
+                                   'onclick="pactPickPartner(\'' + modeEsc(u) + '\')">' +
+                                   '<span class="md-pick-name">' + modeEsc(p.displayName || 'Adventurer') + '</span>' +
+                                   (p.level ? '<span class="md-pick-meta">Lv ' + p.level + '</span>' : '') +
+                                 '</button>';
+                      }).join('') + '</div>' +
+                    '</div>');
+                modeSyncLive();
+                return;
             }
-            modeSheet(html);
+
+            if (s.step === 0) {
+                modeSheet(modeSheetHead('Pact Mode', 'Together', 'pactClearPartner()') +
+                    '<div class="modal-body md-body">' +
+                      '<div class="md-step">With</div>' +
+                      '<div class="md-step-name">' + modeEsc(giftFriendName(s.partnerUid)) + '</div>' +
+                      '<label class="md-label">Your activities</label>' +
+                      modePickerHtml(PACT_MAX_ACTS, {}) +
+                      '<p class="md-hint">They pick their own — it does not have to match, ' +
+                        'and it does not have to be the same number of things.</p>' +
+                    '</div>' +
+                    modeSheetFoot('Next', 'modeStepTo(1)', !s.picks.length,
+                                  modeCostLine(PACT_WAGER), pactWarnHtml()));
+                modeSyncLive();
+                return;
+            }
+
+            modeSheet(modeSheetHead('Pact Mode', 'Together', 'modeStepTo(0)') +
+                '<div class="modal-body md-body">' +
+                  pactStageHtml('setup', 'They get an invite. It starts the day after they accept.') +
+                  '<label class="md-label">Targets</label>' +
+                  pactTargetRowsHtml('pactBump') +
+
+                  '<label class="md-label">Window</label>' +
+                  modeSliderHtml('days', PACT_MIN_DAYS, STAKE_MAX_DAYS, s.days, {
+                      unit: 'days', side: 'pactEnds', label: 'Days',
+                      loLabel: PACT_MIN_DAYS + ' days', hiLabel: STAKE_MAX_DAYS + ' days' }) +
+                  '<p class="md-hint">Starts the day after they accept, so you get the same window. ' +
+                    'A longer pact pays back more — <span data-md-live="pactReturn">' +
+                    modeWagerReturnPct(s.days) + '%</span> at this length.</p>' +
+
+                  pactStakesHtml(PACT_WAGER, s.days) +
+                '</div>' +
+                modeSheetFoot('Send the request', 'pactSend()',
+                              modeStartBlocked(), modeCostLine(PACT_WAGER),
+                              pactWarnHtml()));
             modeSyncLive();
         }
+
+        window.pactClearPartner = function () {
+            if (!_modeSetup) return;
+            _modeSetup.partnerUid = null;
+            _modeSetup.step = 0;
+            pactRenderSetup();
+        };
 
         // The picked activities with a target stepper each — Stake Mode's rows,
         // used verbatim, because both sheets are asking the same question and
@@ -28453,20 +29131,26 @@
             if (!s || !s.partnerUid) return;
             var term = pactBuildTerm();
             if (!term) { showToast('Those activities no longer exist.', 'red'); return; }
+            // Same optimistic shape as modeStartOptimistic: the sheet goes now,
+            // the escrow transaction lands behind it, and the sheet comes back
+            // if it fails. The toast waits for the write, because "request
+            // sent" is a claim about somebody else's inbox.
+            var setup = s, name = giftFriendName(s.partnerUid);
+            modeCloseSheet();
+            modesRenderPage();
             try {
-                await pactCreate(s.partnerUid, giftFriendName(s.partnerUid), term, s.days);
-                modeCloseSheet();
-                showToast('Request sent to ' + giftFriendName(s.partnerUid) +
+                await pactCreate(setup.partnerUid, name, term, setup.days);
+                showToast('Request sent to ' + name +
                           ' — your ' + PACT_WAGER + ' Grit is held until they answer.', 'green', null, 'handshake');
                 modesRenderPage();
-            } catch (e) { showToast(modeErrText(e), 'red'); }
+            } catch (e) { modeStartRollback(setup, modeErrText(e)); }
         };
 
         window.pactOpenAccept = async function (id) {
             var p = pactGet(id);
             if (!p) { await pactFetch(true); p = pactGet(id); }
             if (!p) { showToast('That Pact is no longer available.', 'red'); return; }
-            _modeSetup = { kind: 'pactAccept', pactId: id, picks: [], targets: {}, query: '' };
+            _modeSetup = { kind: 'pactAccept', pactId: id, step: 0, picks: [], targets: {}, query: '' };
             pactRenderAccept();
         };
 
@@ -28476,23 +29160,36 @@
             if (!p) { modeCloseSheet(); return; }
             var from = pactName(p, p.createdBy);
 
-            var html = modeSheetHead('Pact with ' + from, 'Accept');
-            html += '<div class="modal-body md-body">' +
+            if (s.step === 0) {
+                modeSheet(modeSheetHead('Pact with ' + from, 'Accept') +
+                    '<div class="modal-body md-body">' +
+                      pactStageHtml('invite', from + ' is waiting on your side of it.') +
                       '<div class="md-summary">' +
                         '<div class="md-summary-row"><strong>' + modeEsc(from) + '</strong> — ' +
                           modeEsc(pactTermSummary(p, p.createdBy)) +
                           ' over ' + p.durationDays + ' days.</div>' +
                       '</div>' +
-                      '<p class="md-lede">Pick your own activities and targets. Same window, separate goals.</p>' +
-
-                      '<label class="md-label">Your activities</label>' +
+                      '<p class="md-lede">Pick your own activities. Same window, separate goals.</p>' +
                       modePickerHtml(PACT_MAX_ACTS, {}) +
-                      pactTargetRowsHtml('pactAcceptBump') +
-                      '<p class="md-hint">Starts tomorrow and runs ' + p.durationDays + ' days for both of you.</p>' +
                     '</div>' +
-                    modeSheetFoot('Accept and stake ' + p.stake + ' Grit', 'pactDoAccept()',
-                                  modeStartBlocked(), modeCostLine(p.stake), pactWarnHtml());
-            modeSheet(html);
+                    modeSheetFoot('Next', 'modeStepTo(1)', !s.picks.length,
+                                  modeCostLine(p.stake), pactWarnHtml()));
+                modeSyncLive();
+                return;
+            }
+
+            modeSheet(modeSheetHead('Pact with ' + from, 'Accept', 'modeStepTo(0)') +
+                '<div class="modal-body md-body">' +
+                  pactStageHtml('invite', 'Accepting starts it tomorrow, ' + p.durationDays +
+                                          ' days for both of you.') +
+                  '<label class="md-label">Your targets</label>' +
+                  pactTargetRowsHtml('pactAcceptBump') +
+                  pactStakesHtml(p.stake, p.durationDays) +
+                  '<p class="md-hint">Their side is fixed — ' + modeEsc(pactTermSummary(p, p.createdBy)) +
+                    '. If either of you falls short, both stakes go.</p>' +
+                '</div>' +
+                modeSheetFoot('Accept and stake ' + p.stake + ' Grit', 'pactDoAccept()',
+                              modeStartBlocked(), modeCostLine(p.stake), pactWarnHtml()));
             modeSyncLive();
         }
 
@@ -28509,12 +29206,14 @@
             if (!s) return;
             var term = pactBuildTerm();
             if (!term) { showToast('Those activities no longer exist.', 'red'); return; }
+            var setup = s;
+            modeCloseSheet();
+            modesRenderPage();
             try {
-                var out = await pactAccept(s.pactId, term);
-                modeCloseSheet();
+                var out = await pactAccept(setup.pactId, term);
                 showToast('Pact set with ' + out.partnerName + ' — it starts tomorrow.', 'green');
                 modesRenderPage();
-            } catch (e) { showToast(modeErrText(e), 'red'); }
+            } catch (e) { modeStartRollback(setup, modeErrText(e)); }
         };
 
         // ══════════════════════════════════════════════════════════════════
@@ -28659,7 +29358,11 @@
             el.innerHTML =
                 '<div class="md-mile">' +
                   '<div class="md-mile-name">Insurance has been on ' + days + ' days</div>' +
-                  '<p class="md-mile-quote">Still want it? It keeps running either way.</p>' +
+                  '<p class="md-mile-quote">' +
+                    (a.endsDay
+                      ? 'Cover runs out ' + modeEsc(modeDateLabel(a.endsDay)) + '. Nothing renews on its own.'
+                      : 'Still want it? It keeps running either way.') +
+                  '</p>' +
                   '<div class="md-sheet-foot md-sheet-foot-2">' +
                     '<button type="button" class="md-btn" id="mdInsReview">Review it</button>' +
                     '<button type="button" class="md-btn md-btn-primary" id="mdInsKeep">Keep it on</button>' +

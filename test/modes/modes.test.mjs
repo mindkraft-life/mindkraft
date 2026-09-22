@@ -427,15 +427,54 @@ const out = await page.evaluate(async () => {
     await window.__mm.activate('focus', {
         windowStart: '18:00', windowEnd: '20:00', targetDays: 14,
         daysElapsed: 0, lastCountedDay: null, bonusXP: 0, bonusCount: 0 }, 25);
-    const inside = new Date(); inside.setHours(19, 0, 0, 0);
-    const outside = new Date(); outside.setHours(9, 0, 0, 0);
-    ok('a completion inside the window earns the multiplier',
-        window.__mm.multiplierFor('a1', inside.getTime()) === card.focusMultiplier,
-        window.__mm.multiplierFor('a1', inside.getTime()));
-    ok('a completion outside it earns nothing',
-        window.__mm.multiplierFor('a1', outside.getTime()) === 0);
+    // Spec §5a — the time-of-day restriction is gone: the boost applies all
+    // day, every day, for the chosen number of days. The mode activated above
+    // still carries windowStart/windowEnd, which is the point of the second
+    // assertion: a run started under the old rules widens to all-day rather
+    // than needing a migration, because nothing reads those fields any more.
+    const evening = new Date(); evening.setHours(19, 0, 0, 0);
+    const morning = new Date(); morning.setHours(9, 0, 0, 0);
+    ok('a completion earns the multiplier',
+        window.__mm.multiplierFor('a1', evening.getTime()) === card.focusMultiplier,
+        window.__mm.multiplierFor('a1', evening.getTime()));
+    ok('and earns it at any hour of the day',
+        window.__mm.multiplierFor('a1', morning.getTime()) === card.focusMultiplier,
+        window.__mm.multiplierFor('a1', morning.getTime()));
     ok('a negative habit is never multiplied',
-        window.__mm.multiplierFor('a2', inside.getTime()) === 0);
+        window.__mm.multiplierFor('a2', evening.getTime()) === 0);
+
+    // Only the price scales, never the boost.
+    ok('the shortest focus window costs what the flat price did',
+        card.focusCostAt[3] === card.cost.focus, card.focusCostAt);
+    ok('the longest costs six times that', card.focusCostAt[90] === 150, card.focusCostAt);
+    ok('and the curve climbs in between',
+        card.focusCostAt[3] < card.focusCostAt[46] && card.focusCostAt[46] < card.focusCostAt[90],
+        card.focusCostAt);
+    ok('a focus window that has run its days stops paying',
+        (function () {
+            const a = window.userData.modes.active;
+            a.daysElapsed = a.targetDays;
+            return window.__mm.multiplierFor('a1', evening.getTime()) === 0;
+        })());
+
+    // ══ WAGER RETURN CURVE (§5c/§5d) ══════════════════════════════════════
+    // Stake and Pact share one curve, so it is asserted once. The floor is the
+    // old flat rate, which is what keeps a minimum-length wager unchanged.
+    ok('a 5-day wager returns the old flat rate',
+        card.wagerReturnAt[5] === card.wagerReturn, card.wagerReturnAt);
+    ok('a 30-day wager returns 90%', Math.round(card.wagerReturnAt[30] * 100) === 90, card.wagerReturnAt);
+    ok('the middle of the curve sits between them',
+        card.wagerReturnAt[5] < card.wagerReturnAt[17] && card.wagerReturnAt[17] < card.wagerReturnAt[30],
+        card.wagerReturnAt);
+    ok('a longer window than the ceiling is clamped, not extrapolated',
+        card.wagerReturnAt[60] === card.wagerReturnAt[30], card.wagerReturnAt);
+
+    // ══ INSURANCE TERM (§5b) ══════════════════════════════════════════════
+    ok('one cycle costs what the indefinite version did',
+        card.insuranceCostAt[1] === card.cost.insurance, card.insuranceCostAt);
+    ok('and longer terms cost more per term, less per day',
+        card.insuranceCostAt[2] === 35 && card.insuranceCostAt[3] === 50 &&
+        card.insuranceCostAt[3] / 90 < card.insuranceCostAt[1] / 30, card.insuranceCostAt);
 
     // A window that crosses midnight is a window, not two.
     ok('22:00–01:00 contains 23:30', window.__mm.windowTest('22:00', '01:00', '23:30'));
@@ -468,6 +507,55 @@ const out = await page.evaluate(async () => {
     await window.__mm.resolveStake();
     ok('one target short forfeits the whole wager', G().balance === 950, G().balance);
     ok('a lost stake ends the mode', window.__mm.active() === null);
+
+    // §5c — the payout is the rate the stake was PLACED at, read off the
+    // stake's own stored day count. A month-long stake pays the ceiling.
+    boot(1000, [act('a1', 'Run')]);
+    await window.__mm.activate('stake', {
+        items: [{ activityId: 'a1', activityName: 'Run', target: 1, count: 0 }],
+        days: 30, wager: 50, resolved: false }, 50);
+    window.userData.modes.active.items[0].count = 1;
+    await window.__mm.resolveStake();
+    ok('a 30-day stake returns the ceiling, not the floor',
+        G().balance === 950 + 95, G().balance);
+
+    // ══ INSURANCE TERM LIFECYCLE (§5b) ════════════════════════════════════
+    // Insurance is bought by the term now. The term ending is an ordinary mode
+    // ending — it goes out through modesEnd, which is also what stamps the
+    // covered activities so the days it really covered stay covered.
+    boot(1000, [brokenStreakActivity()]);
+    r = await window.__mm.activate('insurance', {
+        activities: [{ activityId: 'a1', activityName: 'Run' }],
+        lastCheckInDay: null, termCycles: 1, termDays: 30,
+        endsDay: dayStr(30) }, 20);
+    ok('a term insurance activates and carries its end day',
+        r.ok && window.__mm.active().endsDay === dayStr(30), window.__mm.active());
+    await window.__mm.runPass();
+    ok('and is left alone while the term still has days in it',
+        !!window.__mm.active(), window.__mm.active());
+
+    // Move the end day into the past: that is the term running out.
+    window.userData.modes.active.endsDay = dayStr(-1);
+    await window.__mm.runPass();
+    await settle();
+    ok('the term running out ends the mode on its own',
+        window.__mm.active() === null, window.__mm.active());
+    ok('and it is archived as a completed run, not a failure',
+        window.__mm.state().history[0].kind === 'insurance' &&
+        window.__mm.state().history[0].outcome === 'completed',
+        window.__mm.state().history[0]);
+
+    // A run bought before terms existed carries no endsDay. Coverage already
+    // paid for is not taken back by a deploy.
+    boot(1000, [brokenStreakActivity()]);
+    await window.__mm.activate('insurance', {
+        activities: [{ activityId: 'a1', activityName: 'Run' }],
+        lastCheckInDay: null }, 20);
+    await window.__mm.runPass();
+    await settle();
+    ok('an indefinite legacy run is never expired by the term check',
+        !!window.__mm.active() && window.__mm.active().kind === 'insurance',
+        window.__mm.active());
 
     // ══ ENDING EARLY ══════════════════════════════════════════════════════
     // Both wagered modes have to actually END when the user ends them. A
@@ -783,30 +871,48 @@ const out = await page.evaluate(async () => {
     ok('it asks who first', /Who with\?/.test(sheetText()));
 
     await window.pactPickPartner(FRIEND);
+    // Spec §4 — the picker gets a step of its own, then the settings. The
+    // invariants below are the same ones; they just live one step apart now,
+    // so the sheet is driven the way a thumb drives it.
     ok('it asks for activities, plural', /Your activities/.test(sheetText()));
     ok('the multi-select picker is on screen', !!sheet().querySelector('.md-dd-list'));
     ok('the send button starts dead, and says why',
         !!sheet().querySelector('.md-sheet-foot .md-btn-primary[disabled]') &&
         /Pick at least one activity/.test(sheetText()));
+    ok('the picker step carries no settings with it',
+        sheet().querySelectorAll('.md-target-row').length === 0 &&
+        !sheet().querySelector('.md-range'));
 
     window.modeTogglePick('a1', 3);
+    ok('one pick unblocks the step', !sheet().querySelector('.md-sheet-foot .md-btn-primary[disabled]'));
+    window.modeStepTo(1);
     ok('picking one activity adds one target row',
         sheet().querySelectorAll('.md-target-row').length === 1);
+    ok('the settings step can get back to the picker', !!sheet().querySelector('.md-back-btn'));
     ok('a single completion is under the floor, and the sheet says so',
         !!sheet().querySelector('.md-sheet-foot .md-btn-primary[disabled]') &&
         /3\+ completions in total/.test(sheetText()));
     window.pactBump('a1', 2);
     ok('three completions clears the floor',
         !sheet().querySelector('.md-sheet-foot .md-btn-primary[disabled]'));
+    ok('and the stakes are named before anything is staked',
+        /Both of you hit it/.test(sheetText()) && /Either falls short/.test(sheetText()),
+        sheetText());
 
+    window.modeStepTo(0);
     window.modeTogglePick('a2', 3);
     window.modeTogglePick('a3', 3);
+    window.modeStepTo(1);
     ok('three activities give three target rows',
         sheet().querySelectorAll('.md-target-row').length === 3);
+    window.modeStepTo(0);
     window.modeTogglePick('a3', 3);
+    window.modeStepTo(1);
     ok('unpicking one takes its row with it',
         sheet().querySelectorAll('.md-target-row').length === 2);
+    window.modeStepTo(0);
     window.modeTogglePick('a3', 3);
+    window.modeStepTo(1);
 
     window.pactBump('a2', 4);    // 5
     window.pactBump('a3', 9);    // 10

@@ -63,7 +63,13 @@ const out = await page.evaluate(async () => {
         };
         window._dataOwnerUid = ME;
         window._dataLoadFailed = false;
+        if (opts.planner) window.userData.planner = opts.planner;
         window.__store.set('users/' + ME, JSON.parse(JSON.stringify(window.userData)));
+        // The activity index is memoized on a STRUCTURAL fingerprint — dimension,
+        // path and activity counts. Two boots with the same shape therefore reuse
+        // the previous boot's index and hand back its activity objects. The app
+        // drops the index whenever it replaces userData; so must this.
+        window.mkTouchActivityIndex();
         window.__pr.ensureWeek();
     }
 
@@ -585,6 +591,119 @@ const out = await page.evaluate(async () => {
     })] });
     ok('§9 while the Monday itself is this week',
         P.completedToday('a1') === true, P.anchor());
+
+    // ══ THE "ACTIVE" ROUTINE (routines spec §1) ═══════════════════════════
+    //
+    // A default group seeded from whatever is counting toward the weekly quota.
+    // It rides the same rollover the payout above does, which is the whole
+    // reason it lives in this suite: the contributor list it copies is the
+    // frozen denominator, not a second walk of the activity tree.
+    (function () {
+        const live = n => act(n, n === 'a1' ? 'Run' : 'Read', {
+            completionHistory: [1, 2, 3, 4, 5, 6].map(d => ({ date: new Date(Date.now() - d * 86400000).toISOString(), xp: 10 })),
+            completionCount: 6
+        });
+        boot({ activities: [live('a1'), live('a2')] });
+
+        let g = P.activeRoutine();
+        ok('§R1 the rollover seeds an Active routine', !!g, g && g.name);
+        ok('§R1 from this week\u2019s contributors, and only them',
+            !!g && JSON.stringify(g.activityIds.slice().sort()) === JSON.stringify(P.seedIds().slice().sort()),
+            g && { got: g.activityIds, want: P.seedIds() });
+        ok('§R1 it is an ordinary group carrying only a findable tag',
+            !!g && g.isSystemDefault === 'active' && !!g.id &&
+            Array.isArray(g.activityIds) && typeof g.name === 'string');
+
+        // Between rollovers it is the user's group, edits and all.
+        window.updateGroup(g.id, { name: 'My mornings', activityIds: ['a1'] });
+        window.__pr.ensureWeek();
+        g = P.activeRoutine();
+        ok('§R1 a same-week pass rewrites nothing', !!g && g.activityIds.length === 1, g && g.activityIds);
+
+        // Push the stored anchor into the past: that is a rollover.
+        G().week.anchor = dayOffset(14);
+        window.__pr.ensureWeek();
+        g = P.activeRoutine();
+        ok('§R1 the rollover REPLACES activityIds rather than merging them',
+            !!g && g.activityIds.length === 2, g && g.activityIds);
+        ok('§R1 and touches nothing else the user set',
+            !!g && g.name === 'My mornings', g && g.name);
+
+        // A delete has to stay deleted.
+        window.deleteGroup(g.id);
+        ok('§R1 deleting it records the dismissal',
+            window.userData.settings.activeRoutineDismissed === true);
+        G().week.anchor = dayOffset(21);
+        window.__pr.ensureWeek();
+        ok('§R1 so the next rollover does not resurrect it', !P.activeRoutine());
+
+        // The create-routine flow's one-tap way back.
+        window.restoreActiveRoutine();
+        ok('§R1 restore reseeds it from the current week',
+            !!P.activeRoutine() && P.activeRoutine().activityIds.length === 2);
+        ok('§R1 and clears the dismissal',
+            window.userData.settings.activeRoutineDismissed === false);
+        G().week.anchor = dayOffset(28);
+        window.__pr.ensureWeek();
+        ok('§R1 so the weekly rewrite resumes afterwards', !!P.activeRoutine());
+    })();
+
+    // ══ PLANNER RECONCILIATION (routines spec §3) ═════════════════════════
+    //
+    // The planner's per-slot `completed` boolean was a second source of truth
+    // about something completionHistory already knew, wired one way only. It
+    // is a projection now: N ticked slots for N real completions today,
+    // earliest filling and latest clearing, whichever surface moved the count.
+    await (async function () {
+        const settle = () => new Promise(r => setTimeout(r, 250));
+        boot({
+            activities: [act('a1', 'Run', { allowMultiplePerDay: true }), act('a2', 'Read')],
+            planner: { recurring: [
+                { id: 'r1', activityId: 'a1', time: '08:00', title: '' },
+                { id: 'r2', activityId: 'a1', time: '18:00', title: '' }
+            ], days: {} }
+        });
+        const today = P.anchor && ymd(new Date());
+        const real = () => window.userData.dimensions[0].paths[0].activities[0]
+            .completionHistory.filter(e => !e.isPenalty).length;
+        const ticked = () => P.slots(today, 'a1').filter(s => s.done).map(s => s.id);
+
+        ok('§R3 slots come back in the order the timeline draws them',
+            JSON.stringify(P.slots(today, 'a1').map(s => s.id)) === JSON.stringify(['r1', 'r2']),
+            P.slots(today, 'a1'));
+
+        await window.completeActivityById('a1'); await settle();
+        ok('§R3 completing from the Activities tab fills the EARLIEST open slot',
+            real() === 1 && JSON.stringify(ticked()) === JSON.stringify(['r1']),
+            { real: real(), ticked: ticked() });
+
+        await window.completeActivityById('a1'); await settle();
+        ok('§R3 a second completion fills the next one, never double-counts',
+            real() === 2 && JSON.stringify(ticked()) === JSON.stringify(['r1', 'r2']),
+            { real: real(), ticked: ticked() });
+
+        await window.undoActivityById('a1'); await settle();
+        ok('§R3 undo clears the LATEST ticked slot',
+            real() === 1 && JSON.stringify(ticked()) === JSON.stringify(['r1']),
+            { real: real(), ticked: ticked() });
+
+        await window.undoActivityById('a1'); await settle();
+        ok('§R3 and the last undo leaves nothing ticked',
+            real() === 0 && ticked().length === 0, { real: real(), ticked: ticked() });
+
+        // The planner tap and the Activities tap are the same action now.
+        window.plannerCompleteSlot('r2', 'a1', true); await settle();
+        ok('§R3 a slot tap leaves ticked-slot count equal to real completions',
+            real() === ticked().length && real() === 1, { real: real(), ticked: ticked() });
+
+        // Reconciliation is idempotent, and never invents planner data for an
+        // activity nobody scheduled.
+        ok('§R3 running it again changes nothing', P.reconcile('a1') === false);
+        const before = JSON.stringify(window.userData.planner.days);
+        await window.completeActivityById('a2'); await settle();
+        ok('§R3 an unscheduled activity touches no planner day',
+            JSON.stringify(window.userData.planner.days) === before);
+    })();
 
     return log;
 });

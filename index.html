@@ -2288,6 +2288,17 @@
                 <div class="modal-body pl-modal-body">
                     <input type="hidden" id="groupEditingId" value="">
 
+                    <!-- One-tap reseed of the grit-contributor "Active" routine.
+                         Shown only while no isSystemDefault:'active' group exists,
+                         so it is an offer on the create flow and never clutter. -->
+                    <div class="grp-restore" id="groupRestoreActive" style="display:none;">
+                        <div class="grp-restore-text">
+                            <strong>Restore Active routine</strong>
+                            <span>Everything counting toward this week's Grit quota, in one group.</span>
+                        </div>
+                        <button type="button" class="grp-restore-btn" onclick="restoreActiveRoutine()">Restore</button>
+                    </div>
+
                     <div class="pl-field">
                         <label class="pl-field-label">Name</label>
                         <input type="text" id="groupName" class="pl-input" placeholder="e.g., Morning Routine" required maxlength="40">

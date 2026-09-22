@@ -9035,6 +9035,54 @@
     font-size: 14px !important;
 }
 
+/* ── "Restore Active routine" offer, create-group modal ────────────
+   Shown only while no isSystemDefault:'active' group exists, so it is
+   an offer on an otherwise empty create form rather than standing
+   furniture. Quiet by default — it is a shortcut, not the main action. */
+.grp-restore {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 13px;
+    margin-bottom: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--recessed-bg-4, transparent);
+}
+.grp-restore-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.grp-restore-text strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.grp-restore-text span {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+.grp-restore-btn {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--color-accent-blue);
+    background: transparent;
+    color: var(--color-accent-blue);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.grp-restore-btn:hover {
+    background: var(--color-accent-blue);
+    color: #fff;
+}
+
 /* ── Dimension color picker — pill row ─────────────────────────── */
 .dim-color-pills {
     display: flex;
@@ -12090,6 +12138,15 @@
 .pr-card-statuschip { margin-top: 10px; }
 
 /* mini "threads" — one row per top-level group, dot rail + tag */
+/* Separates the header metadata (XP, grade, completions) from the
+   pipeline rows below it — the job the "N groups" line was really
+   doing. Present at every width, not only on small screens. */
+.pr-card-divider {
+    height: 1px;
+    margin: 13px 0 0;
+    background: var(--color-border);
+    opacity: 0.55;
+}
 .pr-card-threads { margin-top: 13px; display: flex; flex-direction: column; gap: 9px; }
 .pr-thread { display: flex; align-items: center; gap: 9px; }
 .pr-thread-name { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-secondary); opacity: 0.7; width: 62px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -15940,6 +15997,97 @@ body.mk-ledger-collapsed .mk-ledger-band:not(.active) {
 }
 .md-stake-win  .md-stake-v { color: var(--chip-xp-fg); }
 .md-stake-lose .md-stake-v { color: var(--color-accent-red); }
+
+/* ── Pact lifecycle rail (spec §6) ─────────────────────────────────
+   Setup → Invite sent → Accepted → Active → Resolved. Stages behind the
+   current one read as done, the current one is lit, the rest are waiting.
+   Deliberately small: it answers "where is this" at a glance and then
+   gets out of the way of the numbers underneath. */
+.md-stages {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    margin: 0 0 16px;
+}
+.md-stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    position: relative;
+}
+/* The connector sits behind the dots rather than between them, so the
+   rail stays continuous however the labels wrap. */
+.md-stage::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--color-input-border);
+}
+.md-stage:first-child::before { display: none; }
+.md-stage-dot {
+    position: relative;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2px solid var(--color-input-border);
+    background: var(--color-input-bg);
+    flex-shrink: 0;
+}
+.md-stage-label {
+    font: 500 9.5px Inter, sans-serif;
+    letter-spacing: 0.02em;
+    color: var(--color-text-secondary);
+    opacity: 0.6;
+    text-align: center;
+    line-height: 1.25;
+}
+.md-stage.is-done .md-stage-dot,
+.md-stage.is-done::before { background: var(--chip-xp-fg); border-color: var(--chip-xp-fg); }
+.md-stage.is-now::before { background: var(--chip-xp-fg); }
+.md-stage.is-now .md-stage-dot {
+    background: var(--color-progress);
+    border-color: var(--color-progress);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-progress) 25%, transparent);
+}
+.md-stage.is-now .md-stage-label {
+    color: var(--color-text-primary);
+    opacity: 1;
+    font-weight: 700;
+}
+.md-stage-note {
+    margin: -6px 0 16px;
+    font: 400 11.5px/1.5 Inter, sans-serif;
+    color: var(--color-text-secondary);
+    text-align: center;
+}
+
+/* ── Step-back arrow, two-step setup sheets (spec §4) ──────────────
+   The header's only other control throws the whole setup away, so a
+   flow with a previous step needs a way back that is not "close". */
+.pl-modal-header.md-head-back { display: flex; align-items: center; gap: 10px; }
+.md-back-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid var(--color-input-border);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.md-back-btn:hover { color: var(--color-text-primary); border-color: var(--color-text-secondary); }
 
 /* ── Targets and steppers ── */
 .md-targets { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }

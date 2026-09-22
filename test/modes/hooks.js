@@ -14,6 +14,15 @@ window.__mm = {
             berserkSwingAt: { 1: berserkSwingFor(1), 3: berserkSwingFor(3), 5: berserkSwingFor(5) },
             berserkFloor: BERSERK_FLOOR_PER_H,
             focusMultiplier: FOCUS_MULTIPLIER,
+            // The scaling curves (spec §5). Sampled rather than reimplemented
+            // in the suite, so a test can only ever agree with the shipped
+            // function or fail.
+            focusCostAt: { 3: focusCostFor(3), 46: focusCostFor(46), 90: focusCostFor(90) },
+            insuranceCostAt: { 1: insuranceCostFor(1), 2: insuranceCostFor(2), 3: insuranceCostFor(3) },
+            insuranceTermAt: { 1: insuranceTermDays(1), 2: insuranceTermDays(2), 3: insuranceTermDays(3) },
+            wagerReturnAt: { 5: modeWagerReturnFor(5), 17: modeWagerReturnFor(17),
+                             30: modeWagerReturnFor(30), 60: modeWagerReturnFor(60) },
+            stakeMaxDays: STAKE_MAX_DAYS,
             habitDefaultDays: HABIT_DEFAULT_DAYS, habitResumeDays: HABIT_RESUME_DAYS,
             stakeMinDays: STAKE_MIN_DAYS, stakeMinTotal: STAKE_MIN_TOTAL,
             kinds: MODE_KINDS.slice()
