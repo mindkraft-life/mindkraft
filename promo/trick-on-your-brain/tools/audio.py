@@ -938,29 +938,46 @@ def ffmpeg():
     return os.environ.get('FFMPEG') or imageio_ffmpeg.get_ffmpeg_exe()
 
 
-def build(name):
+def edge_ramp(n):
+    """Gentle clip edges so hard cuts back to camera never click."""
+    ramp = np.ones(n)
+    ramp[:N(0.012)] = np.linspace(0, 1, N(0.012))
+    ramp[-N(0.12):] *= np.linspace(1, 0, N(0.12)) ** 1.5
+    return ramp
+
+
+def clip_stems(name, tail=0.0):
+    """Render one clip's score and SFX.
+
+    Returns (mus, fx, gain, D, cues). The stems run D + tail seconds (the tail is the
+    score's natural release and reverb), are high-passed and tape-stopped where the scene
+    asks for it, and carry no edge ramps. `gain` puts the clip's ramped mix at TARGET_LUFS.
+    """
     info = json.load(open(os.path.join(BUILD, name + '.cues.json')))
     D = info['meta']['duration']
     cues = info['cues']
-    music, sfx = Bus(D), Bus(D)
+    music, sfx = Bus(D, tail=max(3.0, tail + 0.5)), Bus(D, tail=max(3.0, tail + 0.5))
     SCORES[name[:2]](music, D, cues)
     for c in cues:
         x = SFX[c['s']](c)
         heavy = c['s'] in ('farBell', 'chimeSmall', 'glint', 'shimmer', 'levelUp', 'xpChime', 'streakHit', 'logoHit')
         sfx.add(x, c['t'], send=0.45 if heavy else 0.14)
-    n = N(D)
+    n = N(D + tail)
     hpf = lambda x: np.vstack([filt(ch, 'highpass', 40, order=4) for ch in x])
     mus, fx = hpf(render_bus(music)[:, :n]), hpf(render_bus(sfx)[:, :n])
     stop = next((c for c in cues if c['s'] == 'tapeStop'), None)
     if stop:
         mus, fx = tape_stop(mus, stop['t'], stop['dur']), tape_stop(fx, stop['t'], stop['dur'])
-    # gentle edges so the hard cuts back to camera never click
-    ramp = np.ones(n)
-    ramp[:N(0.012)] = np.linspace(0, 1, N(0.012))
-    ramp[-N(0.12):] *= np.linspace(1, 0, N(0.12)) ** 1.5
+    k, ramp = N(D), edge_ramp(N(D))
+    gain = 10 ** ((TARGET_LUFS - lufs(mus[:, :k] * ramp * 0.62 + fx[:, :k] * ramp)) / 20)
+    return mus, fx, gain, D, cues
+
+
+def build(name):
+    mus, fx, gain, D, cues = clip_stems(name)
+    ramp = edge_ramp(N(D))
     mus, fx = mus * ramp, fx * ramp
     mix = mus * 0.62 + fx * 1.0
-    gain = 10 ** ((TARGET_LUFS - lufs(mix)) / 20)
     final = limit(mix * gain)
     os.makedirs(os.path.join(OUT, 'stems'), exist_ok=True)
     wav = os.path.join(BUILD, name + '.mix.wav')

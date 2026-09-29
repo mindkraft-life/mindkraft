@@ -36,6 +36,35 @@ That is about 58 seconds of B-roll across the 2:40 video. Each block of camera t
 - **Running a background track under the whole video?** Mute the clip audio and lay `clips/stems/NN-*.sfx.wav` at the same In point instead. The hits stay, and the scores don't clash with your bed.
 - **Edges:** each clip's first frame is already mid-motion and its audio fades out over the last 0.12s, so hard cuts don't need transitions.
 
+## Background music for the whole video (`bed/`)
+
+A subtle score runs for the full 2:41.99 so the music never stops and starts at the cuts. In each gap between clips it moves from the last clip's key and tempo into the next clip's. The chords lead into the next clip's opening chord, and the pulse lands on the next clip's beat grid, speeding up into it where the tempo rises. The bed then swells into each clip, dips under it (following that clip's chords), and picks up the clip's last chord at the cut back to camera before settling under the voice over about 3 seconds.
+
+There are two ways to use it. **Both start at 00:00:00** and assume the clips sit exactly on the In points above.
+
+| File | How to use it |
+|---|---|
+| `bed/full-soundtrack.wav` | **Most seamless.** Mute the audio on all 9 clips and put this one track at 00:00:00 under the voice. It has the bed plus every clip's music and sound effects on the exact frames. Each clip's music rings out naturally into the bed instead of stopping. |
+| `bed/bg-bed.wav` | Bed only. Keep the clips' own audio and put this at 00:00:00 on its own track. It drops out of the way under each clip and takes over at each cut back to camera. |
+
+- **Levels:** under narration the bed sits at about −27 LUFS, roughly 13 dB below a −14 LUFS voice. A −4.5 dB dip at 2 kHz keeps it out of the speech band. The clips stay at −20 LUFS.
+- **Measured smoothness:** in the full soundtrack every cut changes level by 6 LU or less. The only exceptions are intentional: the tape-stop into silence after clip 04, and the two logo hits at clips 06 and 09, which each arrive after a riser.
+- **If you've moved a clip:** `bg-bed.wav` tolerates a few frames of drift. `full-soundtrack.wav` has the clip hits baked in, so it needs the exact In points.
+
+What the music does in each gap:
+
+| Gap | Narration | Bed |
+|---|---|---|
+| 0:00–0:03.66 | hook | D minor; clip 01's clock and ostinato fade in on its 120 BPM grid |
+| 0:08.94–0:12.14 | "Let me explain…" | B♭ → F/A → Am, with a pulse speeding up into clip 02's 140 BPM sixteenths |
+| 0:15.98–0:33.13 | relationship, money | resolves to C, then a warm 85 BPM felt-piano groove on clip 03's grid (C → G/B → Am → F → Dm → G) |
+| 0:41.29–0:56.49 | "reward comes late… don't even try… instant gratification" | clip 03's plucks ring out; reflective C → Am → F → Fm; a hush on "Try."; then a C pedal (the dominant of F minor) pumps on clip 04's 128 BPM grid as the filter opens |
+| 1:05.85–1:18.74 | "slow and boring… what if…" | silence after the tape-stop, then a lazy 60 BPM clock over a wobbly Fm pad; it lifts to D♭, then B♭ bells, then C, with marimba on clip 05's grid |
+| 1:23.94–1:28.10 | "Now how will you do that?" | clip 05's F-major marimba motif rings on; B♭ → F with a riser into the logo zap |
+| 1:36.58–1:58.66 | "Of course, all of this is fake…" | clip 06's chiptune lead echoes out; a soft 120 BPM lo-fi groove in C; it darkens to A sus2 with clip 07's heartbeat on its grid |
+| 2:04.74–2:17.22 | testimonial, "building momentum" | clip 07's 100 BPM hats and marimba carry on in C, then speed up onto clip 08's 150 BPM grid (G → A → D) |
+| 2:25.38–2:37.99 | "So if there is something…" | clip 08's guitar keeps picking and relaxes from eighths to quarters to halves; D → Bm → G → Gm → B♭ → C → F, with a bell arpeggio rising into the end card |
+
 ## Beat sheets
 
 The animation and the sound come from the same cue list. Each scene exports `SCENE.cues`, and `tools/audio.py` places every sound on those exact times.
@@ -143,6 +172,8 @@ studios/NN-*.html     built standalone studios: open in a browser to scrub, play
 tools/build.mjs       splices kit + scene into the shell → studios/
 tools/render.mjs      Playwright renders every frame deterministically → H.264, and exports cues
 tools/audio.py        synthesizes score + SFX on the cue times, normalizes loudness, muxes → clips/
+tools/bed.py          composes the full-length bed and full soundtrack from the insert map → bed/
+tools/check_bed.py    prints the level change at every cut (--plot draws the loudness curve)
 ```
 
 Re-render after editing a scene (Node 18+ with Playwright/Chromium; Python 3 with `numpy scipy imageio-ffmpeg`; the Inter font installed locally):
@@ -151,4 +182,5 @@ Re-render after editing a scene (Node 18+ with Playwright/Chromium; Python 3 wit
 node tools/build.mjs
 node tools/render.mjs 06          # one clip (omit the prefix for all); --stills=1.5,6.0 for PNG checks
 python3 tools/audio.py 06
+python3 tools/bed.py              # re-run after any clip or In-point change (In points live in INS)
 ```
