@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mindkraft Motion Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141414; --panel:#1d1f24; --panel2:#22242a; --line:rgba(255,255,255,.07);
+    --txt:#f2f2f3; --txt2:#9a9ca3; --blue:#5a9fd4; --blue2:#4a7c9e; --green:#4ade80; --red:#c26a7a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    -webkit-font-smoothing:antialiased; display:flex; min-height:100%;
+  }
+  .studio{display:flex; flex-direction:column; width:100%; max-width:1280px; margin:0 auto; padding:18px 18px 28px}
+  header{display:flex; align-items:center; gap:10px; padding:4px 2px 14px}
+  .logo{font-size:18px; font-weight:800; letter-spacing:-.02em}
+  .logo .b{color:var(--blue)}
+  .logo .bolt{color:#fff; margin-right:6px}
+  header .sub{font-size:12px; color:var(--txt2); font-weight:500; margin-left:6px}
+  .meta{margin-left:auto; font-size:11.5px; color:var(--txt2); font-weight:600; letter-spacing:.02em;
+        font-variant-numeric:tabular-nums; display:flex; gap:14px}
+  .meta b{color:var(--txt); font-weight:700}
+  .stage{display:flex; justify-content:center; align-items:center; flex:1; min-height:0;
+         background:
+           radial-gradient(120% 120% at 0% 0%, rgba(74,124,158,.10), transparent 60%),
+           radial-gradient(120% 120% at 100% 100%, rgba(142,59,95,.09), transparent 60%),
+           #101012;
+         border:1px solid var(--line); border-radius:16px; padding:20px; overflow:hidden}
+  canvas#cv{display:block; max-width:100%; max-height:64vh; border-radius:18px;
+            box-shadow:0 18px 60px rgba(0,0,0,.55); background:#000}
+  .controls{display:flex; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap}
+  button{font-family:inherit; font-weight:600; font-size:13px; color:var(--txt);
+          background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+          height:38px; padding:0 16px; cursor:pointer; display:inline-flex; align-items:center; gap:7px;
+          transition:.16s background, .16s opacity}
+  button:hover{background:#2b2e35}
+  button:disabled{opacity:.4; cursor:default}
+  button.primary{background:var(--blue2); border-color:transparent; color:#fff}
+  button.primary:hover{background:var(--blue)}
+  button.rec{background:#3a1f28; border-color:rgba(194,106,122,.4); color:#f0b9c4}
+  button.rec:hover{background:#4a2632}
+  button.rec.armed{background:#c0344f; border-color:transparent; color:#fff}
+  .scrub{flex:1; min-width:160px; display:flex; align-items:center; gap:10px}
+  input[type=range]{flex:1; accent-color:var(--blue); height:4px}
+  .time{font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--txt2); font-weight:600; min-width:92px; text-align:right}
+  .status{font-size:12px; color:var(--txt2); font-weight:600; margin-left:2px; min-height:16px}
+  .status.live{color:#f0b9c4}
+  .status.done{color:var(--green)}
+  .tl{margin-top:16px; border-top:1px solid var(--line); padding-top:14px}
+  .tl h3{font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--txt2); margin-bottom:10px}
+  .beats{display:flex; flex-direction:column; gap:6px}
+  .beat{display:grid; grid-template-columns:64px 1fr; gap:12px; font-size:12.5px; padding:5px 8px; border-radius:8px}
+  .beat .tt{font-variant-numeric:tabular-nums; color:var(--blue); font-weight:700}
+  .beat .lbl{color:var(--txt2)}
+  .beat.on{background:rgba(90,159,212,.10)}
+  .beat.on .lbl{color:var(--txt)}
+  .hint{font-size:11px; color:var(--txt2); margin-top:12px; line-height:1.5}
+  .hint b{color:#5a9fd4; font-weight:600}
+</style>
+</head>
+<body>
+<div class="studio">
+  <header>
+    <div class="logo"><span class="bolt">&#9889;</span>mind<span class="b">kraft</span></div>
+    <span class="sub">Motion Studio</span>
+    <div class="meta">
+      <span><b id="mRes">–</b> px</span>
+      <span><b id="mFps">–</b> fps</span>
+      <span><b id="mDur">–</b> s</span>
+    </div>
+  </header>
+
+  <div class="stage"><canvas id="cv" width="1080" height="1920"></canvas></div>
+
+  <div class="controls">
+    <button class="primary" id="playBtn" onclick="togglePlay()">&#9654; Play</button>
+    <button id="restartBtn" onclick="restart()">&#8635; Restart</button>
+    <button class="rec" id="recBtn" onclick="toggleRecord()">&#9679; Record &amp; download</button>
+    <div class="scrub">
+      <input type="range" id="scrub" min="0" max="1000" value="0" oninput="onScrub(this.value)">
+      <span class="time" id="time">0.00 / 0.00s</span>
+    </div>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="tl">
+    <h3>Scene timeline</h3>
+    <div class="beats" id="beats"></div>
+    <div class="hint">Recording saves a <b>.webm</b> video (no audio) in real time &mdash; let it play to the end.
+      Generate the matching soundtrack in Lyria with the prompt provided in chat, then combine video + audio in any editor.</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   MINDKRAFT MOTION STUDIO — ENGINE + BRAND KIT   (do not edit this block)
+   The only thing you change per animation is the SCENE object further down.
+   ========================================================================== */
+
+/* ---- Brand tokens (from the Mindkraft design brief) --------------------- */
+const COL = {
+  bg:'#1a1a1a', card:'#22242a', cardEdge:'rgba(255,255,255,0.045)',
+  recess:'rgba(255,255,255,0.025)', hair:'rgba(255,255,255,0.05)',
+  txt:'#ffffff', txt2:'#b0b0b0', txt3:'rgba(255,255,255,0.44)', txt4:'rgba(255,255,255,0.22)',
+  blue:'#5a9fd4', blueDk:'#4a7c9e', green:'#4ade80', greenXp:'#6dbf7e',
+  coral:'#fb923c', coralBg:'rgba(251,146,60,0.14)', amber:'#fbbf24', amberBg:'rgba(251,191,36,0.13)',
+  red:'#c26a7a', redDk:'#8e3b5f', gold:'#f5c563', track:'rgba(255,255,255,0.07)',
+  // dimension accents
+  dim:{focus:'#5a9fd4', body:'#6b8b6f', mind:'#7a5d9e', social:'#c26a7a', craft:'#b88242'}
+};
+
+/* ---- Math + easing ------------------------------------------------------ */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const E={
+  linear:t=>t,
+  inQuad:t=>t*t,
+  outQuad:t=>1-(1-t)*(1-t),
+  inOut:t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,
+  outCubic:t=>1-Math.pow(1-t,3),
+  inOutCubic:t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,
+  outExpo:t=>t>=1?1:1-Math.pow(2,-10*t),
+  outBack:(t,s=1.70158)=>1+(s+1)*Math.pow(t-1,3)+s*Math.pow(t-1,2),
+  outElastic:t=>t<=0?0:t>=1?1:Math.pow(2,-10*t)*Math.sin((t*10-0.75)*((2*Math.PI)/3))+1
+};
+/* progress 0..1 of a sub-interval starting at t0 lasting dur */
+const prog=(t,t0,dur)=>clamp((t-t0)/dur,0,1);
+/* eased tween of a value across [t0, t0+dur] */
+const tween=(t,t0,dur,from,to,ease=E.outCubic)=>from+(to-from)*ease(prog(t,t0,dur));
+/* 1 only while t in [t0, t0+dur], used to gate effects */
+const within=(t,t0,dur)=>t>=t0&&t<=t0+dur;
+
+/* ---- Canvas helpers ----------------------------------------------------- */
+const fn=(w,s)=>`${w} ${s}px 'Inter',-apple-system,sans-serif`;
+function rr(c,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  c.beginPath();
+  c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+function shadow(c,col,blur,oy=0){c.shadowColor=col;c.shadowBlur=blur;c.shadowOffsetY=oy;}
+function noShadow(c){c.shadowColor='transparent';c.shadowBlur=0;c.shadowOffsetY=0;}
+
+/* atmospheric background sized to the canvas (the "scene" the app floats in) */
+function sceneBg(c,W,H,energy=0){
+  c.fillStyle=COL.bg; c.fillRect(0,0,W,H);
+  const pulse=1+0.06*Math.sin(energy*Math.PI*2);
+  const blobs=[
+    [W*0.12,H*0.10,Math.max(W,H)*0.55*pulse,'rgba(74,124,158,0.20)'],
+    [W*0.92,H*0.94,Math.max(W,H)*0.50*pulse,'rgba(142,59,95,0.17)'],
+    [W*0.5,H*0.5,Math.max(W,H)*0.34,'rgba(58,58,92,0.12)']
+  ];
+  for(const[x,y,r,col]of blobs){
+    const g=c.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,col); g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+  }
+}
+
+/* the Mindkraft wordmark */
+function mkLogo(c,x,y,size,align='left'){
+  c.save(); c.textBaseline='alphabetic'; c.textAlign='left';
+  c.font=fn(800,size);
+  const boltW=size*1.05, gap=size*0.30;
+  const mindW=c.measureText('mind').width, kraftW=c.measureText('kraft').width;
+  const total=boltW+gap+mindW+kraftW;
+  let sx=x; if(align==='center')sx=x-total/2; else if(align==='right')sx=x-total;
+  c.font=fn(800,size*1.0); c.fillStyle='#fff';
+  shadow(c,'rgba(90,159,212,0.55)',size*0.5); c.fillText('\u26A1',sx,y); noShadow(c);
+  c.font=fn(800,size); c.fillStyle='#fff'; c.fillText('mind',sx+boltW+gap,y);
+  c.fillStyle=COL.blue; c.fillText('kraft',sx+boltW+gap+mindW,y);
+  c.restore();
+  return total;
+}
+
+/* phone device frame; draws screen content via callback, clipped to the screen */
+function phone(c,x,y,w,h,drawScreen){
+  c.save();
+  const r=w*0.12;
+  // outer body
+  shadow(c,'rgba(0,0,0,0.6)',w*0.16,w*0.06);
+  rr(c,x,y,w,h,r); c.fillStyle='#0a0b0d'; c.fill(); noShadow(c);
+  // metal rim highlight
+  rr(c,x,y,w,h,r); c.lineWidth=Math.max(1.5,w*0.006); c.strokeStyle='rgba(255,255,255,0.10)'; c.stroke();
+  // screen
+  const bz=w*0.035, sx=x+bz, sy=y+bz, sw=w-bz*2, sh=h-bz*2, sr=r-bz;
+  c.save(); rr(c,sx,sy,sw,sh,sr); c.clip();
+  c.fillStyle=COL.bg; c.fillRect(sx,sy,sw,sh);
+  drawScreen(c,sx,sy,sw,sh);
+  c.restore();
+  // dynamic-island notch
+  const nw=sw*0.30, nh=sh*0.018, nx=sx+(sw-nw)/2, ny=sy+sh*0.018;
+  rr(c,nx,ny,nw,nh,nh/2); c.fillStyle='#000'; c.fill();
+  // top screen glow
+  c.restore();
+}
+
+/* card material per the brief: surface, not borders */
+function card(c,x,y,w,h,o={}){
+  const r=o.r??Math.min(14,h*0.16);
+  c.save();
+  shadow(c,'rgba(0,0,0,0.45)',h*0.28,h*0.06);
+  rr(c,x,y,w,h,r); c.fillStyle=o.bg||COL.card; c.fill(); noShadow(c);
+  // top inset highlight + bottom inset shadow (approximated with hairlines)
+  rr(c,x,y,w,h,r); c.lineWidth=1; c.strokeStyle=COL.cardEdge; c.stroke();
+  c.save(); rr(c,x,y,w,h,r); c.clip();
+  c.strokeStyle='rgba(255,255,255,0.075)'; c.lineWidth=1;
+  c.beginPath(); c.moveTo(x+r*0.4,y+0.5); c.lineTo(x+w-r*0.4,y+0.5); c.stroke();
+  c.restore();
+  // dimension left-edge bar
+  if(o.dim){
+    const bw=Math.max(3,w*0.012);
+    rr(c,x,y+r*0.5,bw,h-r,bw/2);
+    c.fillStyle=o.dim; c.fill();
+    if(o.dimGlow){ shadow(c,o.dim,12); c.fill(); noShadow(c); }
+  }
+  c.restore();
+}
+
+/* XP progress bar (track + gradient fill) */
+function xpBar(c,x,y,w,h,pct){
+  c.save();
+  rr(c,x,y,w,h,h/2); c.fillStyle=COL.track; c.fill();
+  pct=clamp(pct,0,1);
+  if(pct>0.001){
+    rr(c,x,y,w*pct,h,h/2);
+    const g=c.createLinearGradient(x,0,x+w,0);
+    g.addColorStop(0,COL.blueDk); g.addColorStop(1,COL.blue);
+    c.fillStyle=g; shadow(c,'rgba(90,159,212,0.5)',h*1.4); c.fill(); noShadow(c);
+  }
+  c.restore();
+}
+
+/* pill chip; kind: 'xp' | 'streak' | 'warn' | 'counter' */
+function chip(c,x,y,text,kind='counter',scale=1){
+  c.save(); c.font=fn(700,15*scale); c.textBaseline='middle';
+  const padX=12*scale, h=24*scale, tw=c.measureText(text).width, w=tw+padX*2;
+  let bg,fg;
+  if(kind==='xp'){bg=null;fg=COL.greenXp;}
+  else if(kind==='streak'){bg=COL.coralBg;fg=COL.coral;}
+  else if(kind==='warn'){bg=COL.amberBg;fg=COL.amber;}
+  else{bg='rgba(90,159,212,0.16)';fg=COL.blue;}
+  if(bg){rr(c,x,y,w,h,h/2);c.fillStyle=bg;c.fill();}
+  c.fillStyle=fg; c.textAlign='left'; c.fillText(text,x+padX,y+h/2);
+  c.restore();
+  return w;
+}
+
+/* big tabular number (level display) */
+function bigNum(c,x,y,text,size,color=COL.txt){
+  c.save(); c.font=fn(800,size); c.fillStyle=color;
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(text,x,y); c.restore();
+}
+
+/* toast pill */
+function toast(c,cx,y,text){
+  c.save(); c.font=fn(600,26); c.textBaseline='middle';
+  const tw=c.measureText(text).width, padX=34, h=64, w=tw+padX*2, x=cx-w/2;
+  shadow(c,'rgba(0,0,0,0.5)',30,8);
+  rr(c,x,y,w,h,h/2); c.fillStyle=COL.card; c.fill(); noShadow(c);
+  rr(c,x,y,w,h,h/2); c.lineWidth=1; c.strokeStyle=COL.cardEdge; c.stroke();
+  c.fillStyle=COL.txt; c.textAlign='center'; c.fillText(text,cx,y+h/2);
+  c.restore();
+}
+
+/* expanding tap ripple (p = 0..1) */
+function tapRipple(c,x,y,p,col=COL.blue){
+  if(p<=0||p>=1)return;
+  c.save();
+  c.beginPath(); c.arc(x,y,lerp(8,80,E.outCubic(p)),0,Math.PI*2);
+  c.strokeStyle=col; c.globalAlpha=1-p; c.lineWidth=4; c.stroke();
+  c.beginPath(); c.arc(x,y,lerp(2,30,E.outCubic(p)),0,Math.PI*2);
+  c.fillStyle=col; c.globalAlpha=(1-p)*0.4; c.fill();
+  c.restore();
+}
+
+/* indicator primitive: glowing underline */
+function indicator(c,cx,y,w,col=COL.blue){
+  c.save();
+  const g=c.createLinearGradient(cx-w/2,0,cx+w/2,0);
+  g.addColorStop(0,'transparent'); g.addColorStop(.3,col); g.addColorStop(.7,col); g.addColorStop(1,'transparent');
+  shadow(c,col,14); c.fillStyle=g; c.fillRect(cx-w/2,y,w,2.4); c.restore();
+}
+
+/* golden level-up sparkle burst (p = 0..1) */
+function sparkleBurst(c,x,y,p,n=14,rad=120){
+  if(p<=0)return;
+  c.save();
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2 + p*0.6;
+    const d=E.outExpo(p)*rad*(0.6+0.4*((i*37)%n)/n);
+    const px=x+Math.cos(a)*d, py=y+Math.sin(a)*d;
+    const s=lerp(7,1,p);
+    c.globalAlpha=(1-p);
+    c.fillStyle=COL.gold; shadow(c,'rgba(245,197,99,0.9)',16);
+    c.beginPath(); c.arc(px,py,s,0,Math.PI*2); c.fill();
+  }
+  noShadow(c); c.restore();
+}
+
+/* ---------------------------------------------------------------------------
+   SCENE — EDIT THIS OBJECT ONLY.
+   meta: title, w, h, fps, duration (seconds)
+   timeline: array of {t, label} beats (drives the readout + your audio prompt)
+   draw(c, t): renders ONE frame at elapsed time t (seconds). Pure function of t.
+   ------------------------------------------------------------------------- */
+// ============ SCENE:BEGIN — replace everything down to SCENE:END ============
+const SCENE = {
+  meta:{ title:'Mindkraft — Complete & Level Up', w:1080, h:1920, fps:60, duration:6.2 },
+
+  timeline:[
+    {t:0.0, label:'Scene composes — activity cards cascade in'},
+    {t:1.5, label:'Tap the top habit — ripple + card completes (pulse)'},
+    {t:2.1, label:'+25 XP flies up; XP bar fills'},
+    {t:3.0, label:'Second habit tapped & completed; +15 XP'},
+    {t:4.0, label:'XP bar tops out — golden level-up 7 \u2192 8'},
+    {t:5.0, label:'“Level 8 — Focused Mind” toast rises and settles'}
+  ],
+
+  draw(c,t){
+    const W=this.meta.w, H=this.meta.h;
+    sceneBg(c,W,H, prog(t,4.0,1.0)); // background pulses at level-up
+
+    // floating phone
+    const bob=Math.sin(t*1.1)*8;
+    const pw=W*0.62, ph=pw*2.03, px=(W-pw)/2, py=(H-ph)/2 + bob;
+
+    // XP state derived from time
+    const xp1=tween(t,2.1,0.8,0.34,0.62);
+    const xp2=tween(t,3.2,0.8,0.62,1.0);
+    const xpPct = t<3.2 ? xp1 : xp2;
+    const leveled = t>=4.05;
+    const lvl = leveled ? 8 : 7;
+
+    phone(c,px,py,pw,ph,(c,sx,sy,sw,sh)=>{
+      const pad=sw*0.07;
+      // ---- header: logo + level ----
+      mkLogo(c,sx+pad,sy+sh*0.075,sw*0.058,'left');
+      // level chip top-right
+      c.save();
+      const lvlSize=sw*0.052;
+      c.font=fn(800,lvlSize); c.textAlign='right'; c.textBaseline='alphabetic';
+      let lvlCol=COL.txt;
+      if(within(t,4.05,0.6)){ // level-up flash to gold then settle
+        lvlCol = prog(t,4.05,0.5)<1 ? COL.gold : COL.txt;
+      } else if(leveled){ lvlCol=COL.txt; }
+      const lvlScale = leveled ? lerp(1.35,1,clamp(prog(t,4.05,0.55),0,1)) : 1;
+      c.translate(sx+sw-pad, sy+sh*0.078);
+      c.scale(lvlScale,lvlScale);
+      c.fillStyle=COL.txt3; c.font=fn(700,sw*0.026); c.fillText('LVL',-(c.measureText(String(lvl)).width)*0+0,-sw*0.052);
+      c.fillStyle=lvlCol; c.font=fn(800,lvlSize); c.fillText(String(lvl),0,0);
+      c.restore();
+      if(leveled) sparkleBurst(c,sx+sw-pad-lvlSize*0.4,sy+sh*0.06,prog(t,4.05,0.9),16,sw*0.5);
+
+      // ---- XP bar ----
+      const barY=sy+sh*0.135, barX=sx+pad, barW=sw-pad*2, barH=sh*0.012;
+      xpBar(c,barX,barY,barW,barH,xpPct);
+
+      // ---- "TODAY" kicker ----
+      c.save(); c.font=fn(700,sw*0.028); c.fillStyle=COL.txt4;
+      c.textAlign='left'; c.textBaseline='alphabetic';
+      c.fillText('T O D A Y',sx+pad,sy+sh*0.205); c.restore();
+
+      // ---- activity cards (cascade in) ----
+      const cards=[
+        {name:'Morning Meditation', xp:'+25 XP', dim:COL.dim.mind,  completeAt:1.55},
+        {name:'Read 20 pages',       xp:'+15 XP', dim:COL.dim.focus, completeAt:3.05},
+        {name:'Evening run',         xp:'+30 XP', dim:COL.dim.body,  completeAt:null}
+      ];
+      const cw=sw-pad*2, ch=sh*0.115, gap=sh*0.028, cx0=sx+pad, cy0=sy+sh*0.235;
+      cards.forEach((cd,i)=>{
+        const appear=prog(t,0.15+i*0.13,0.55);          // staggered mount cascade
+        const oy=lerp(34,0,E.outBack(appear));
+        const cy=cy0+i*(ch+gap)+oy;
+        c.save(); c.globalAlpha=appear;
+        const done = cd.completeAt!=null && t>=cd.completeAt;
+        const pulse = cd.completeAt!=null ? Math.max(0,1-prog(t,cd.completeAt,0.45)) : 0;
+        const ps=1+0.04*Math.sin(pulse*Math.PI); // just-toggled pulse
+        c.translate(cx0+cw/2,cy+ch/2); c.scale(ps,ps); c.translate(-(cx0+cw/2),-(cy+ch/2));
+        card(c,cx0,cy,cw,ch,{dim:cd.dim,dimGlow:done,bg:done?'#23271f':COL.card});
+        // name
+        c.fillStyle=done?COL.txt:COL.txt; c.font=fn(600,sw*0.038);
+        c.textAlign='left'; c.textBaseline='middle';
+        c.fillText(cd.name,cx0+cw*0.10,cy+ch*0.42);
+        // xp chip
+        chip(c,cx0+cw*0.10,cy+ch*0.60,cd.xp,done?'xp':'counter',sw*0.0019);
+        // completion check
+        const checkR=ch*0.26, ccx=cx0+cw-ch*0.5, ccy=cy+ch/2;
+        c.beginPath(); c.arc(ccx,ccy,checkR,0,Math.PI*2);
+        if(done){ c.fillStyle=COL.green; shadow(c,'rgba(74,222,128,0.6)',14); c.fill(); noShadow(c);
+          c.strokeStyle='#0c1f12'; c.lineWidth=Math.max(3,sw*0.008); c.lineCap='round';
+          const k=prog(t,cd.completeAt,0.3);
+          c.beginPath();
+          c.moveTo(ccx-checkR*0.42,ccy);
+          c.lineTo(lerp(ccx-checkR*0.42,ccx-checkR*0.1,clamp(k*2,0,1)),lerp(ccy,ccy+checkR*0.32,clamp(k*2,0,1)));
+          if(k>0.5) c.lineTo(lerp(ccx-checkR*0.1,ccx+checkR*0.45,clamp((k-0.5)*2,0,1)),lerp(ccy+checkR*0.32,ccy-checkR*0.4,clamp((k-0.5)*2,0,1)));
+          c.stroke();
+        } else {
+          c.strokeStyle='rgba(255,255,255,0.18)'; c.lineWidth=2; c.stroke();
+        }
+        c.restore();
+
+        // tap ripple just before completion
+        if(cd.completeAt!=null) tapRipple(c,cx0+cw/2,cy+ch/2,prog(t,cd.completeAt-0.35,0.5));
+
+        // +XP fly-up toward the bar
+        if(cd.completeAt!=null){
+          const fp=prog(t,cd.completeAt,0.7);
+          if(fp>0&&fp<1){
+            c.save(); c.globalAlpha=1-fp;
+            const fx=cx0+cw*0.5, fy=lerp(cy+ch/2,barY+sh*0.02,E.outCubic(fp));
+            c.font=fn(800,sw*0.05); c.fillStyle=COL.greenXp; c.textAlign='center';
+            shadow(c,'rgba(109,191,126,0.6)',14);
+            c.fillText(cd.xp,fx,fy); noShadow(c); c.restore();
+          }
+        }
+      });
+    });
+
+    // ---- level-up toast (rises from below, settles) ----
+    if(t>=5.0){
+      const rise=prog(t,5.0,0.6);
+      const ty=lerp(H+80,H*0.84,E.outBack(rise));
+      c.save(); c.globalAlpha=clamp(rise*1.4,0,1);
+      toast(c,W/2,ty,'\u2B50  Level 8 — Focused Mind');
+      c.restore();
+    }
+  }
+};
+// ============ SCENE:END ====================================================
+
+/* ===== PLAYER / RECORDER (engine — do not edit) ===== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let DUR=SCENE.meta.duration, FPS=SCENE.meta.fps;
+let st={t:0,playing:false,recording:false,raf:0,wall:0};
+let rec=null, chunks=[];
+
+function fitCanvas(){ cv.width=SCENE.meta.w; cv.height=SCENE.meta.h; }
+function renderFrame(t){
+  t=clamp(t,0,DUR);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  try{ SCENE.draw(ctx,t); }catch(e){ console.error('SCENE.draw error',e); }
+}
+function fmt(x){return x.toFixed(2);}
+function updateUI(){
+  document.getElementById('time').textContent=`${fmt(st.t)} / ${fmt(DUR)}s`;
+  document.getElementById('scrub').value=String(Math.round(st.t/DUR*1000));
+  const beats=document.querySelectorAll('.beat');
+  SCENE.timeline.forEach((b,i)=>{
+    const next=SCENE.timeline[i+1];
+    const on = st.t>=b.t && (!next || st.t<next.t);
+    if(beats[i]) beats[i].classList.toggle('on',on);
+  });
+}
+function loop(){
+  const now=performance.now();
+  st.t=(now-st.wall)/1000;
+  if(st.t>=DUR){
+    st.t=DUR; renderFrame(st.t); updateUI();
+    st.playing=false;
+    if(st.recording) stopRecording();
+    document.getElementById('playBtn').innerHTML='&#9654; Play';
+    return;
+  }
+  renderFrame(st.t); updateUI();
+  st.raf=requestAnimationFrame(loop);
+}
+function play(){
+  if(st.playing)return;
+  if(st.t>=DUR-0.001) st.t=0;
+  st.playing=true; st.wall=performance.now()-st.t*1000;
+  document.getElementById('playBtn').innerHTML='&#10073;&#10073; Pause';
+  st.raf=requestAnimationFrame(loop);
+}
+function pause(){
+  st.playing=false; cancelAnimationFrame(st.raf);
+  document.getElementById('playBtn').innerHTML='&#9654; Play';
+}
+function togglePlay(){ st.playing?pause():play(); }
+function restart(){ pause(); st.t=0; renderFrame(0); updateUI(); }
+function onScrub(v){
+  pause(); st.t=(v/1000)*DUR; renderFrame(st.t); updateUI();
+}
+
+function pickMime(){
+  const c=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  for(const m of c){ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m; }
+  return '';
+}
+function toggleRecord(){ st.recording?stopRecording():startRecording(); }
+function startRecording(){
+  if(!window.MediaRecorder){ setStatus('MediaRecorder not supported in this browser',''); return; }
+  const mime=pickMime();
+  const stream=cv.captureStream(FPS);
+  try{ rec=new MediaRecorder(stream, mime?{mimeType:mime,videoBitsPerSecond:12000000}:undefined); }
+  catch(e){ setStatus('Could not start recorder: '+e.message,''); return; }
+  chunks=[];
+  rec.ondataavailable=e=>{ if(e.data&&e.data.size>0)chunks.push(e.data); };
+  rec.onstop=()=>{
+    const blob=new Blob(chunks,{type:mime||'video/webm'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=slug(SCENE.meta.title)+'.webm';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    setStatus('Saved '+a.download+' ('+(blob.size/1048576).toFixed(1)+' MB)','done');
+  };
+  st.recording=true;
+  const b=document.getElementById('recBtn'); b.classList.add('armed'); b.innerHTML='&#9632; Stop';
+  setStatus('Recording…','live');
+  restart(); rec.start(); play();
+  // status ticker
+  const tick=()=>{ if(st.recording){ setStatus('Recording… '+fmt(st.t)+'s','live'); requestAnimationFrame(tick); } };
+  requestAnimationFrame(tick);
+}
+function stopRecording(){
+  if(!st.recording)return;
+  st.recording=false;
+  const b=document.getElementById('recBtn'); b.classList.remove('armed'); b.innerHTML='&#9679; Record &amp; download';
+  try{ if(rec&&rec.state!=='inactive') rec.stop(); }catch(e){}
+}
+function setStatus(msg,cls){ const s=document.getElementById('status'); s.textContent=msg; s.className='status'+(cls?(' '+cls):''); }
+function slug(s){ return (s||'mindkraft-scene').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'mindkraft-scene'; }
+
+function buildTimeline(){
+  const el=document.getElementById('beats'); el.innerHTML='';
+  SCENE.timeline.forEach(b=>{
+    const d=document.createElement('div'); d.className='beat';
+    d.innerHTML=`<span class="tt">${b.t.toFixed(1)}s</span><span class="lbl">${b.label}</span>`;
+    el.appendChild(d);
+  });
+}
+function boot(){
+  fitCanvas();
+  DUR=SCENE.meta.duration; FPS=SCENE.meta.fps;
+  document.getElementById('mRes').textContent=SCENE.meta.w+'×'+SCENE.meta.h;
+  document.getElementById('mFps').textContent=FPS;
+  document.getElementById('mDur').textContent=DUR.toFixed(1);
+  buildTimeline();
+  const first=()=>{ renderFrame(0); updateUI(); };
+  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(first); setTimeout(first,400);} else first();
+}
+boot();
+</script>
+</body>
+</html>
+

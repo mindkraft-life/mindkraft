@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mindkraft Motion Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141414; --panel:#1d1f24; --panel2:#22242a; --line:rgba(255,255,255,.07);
+    --txt:#f2f2f3; --txt2:#9a9ca3; --blue:#5a9fd4; --blue2:#4a7c9e; --green:#4ade80; --red:#c26a7a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    -webkit-font-smoothing:antialiased; display:flex; min-height:100%;
+  }
+  .studio{display:flex; flex-direction:column; width:100%; max-width:1280px; margin:0 auto; padding:18px 18px 28px}
+  header{display:flex; align-items:center; gap:10px; padding:4px 2px 14px}
+  .logo{font-size:18px; font-weight:800; letter-spacing:-.02em}
+  .logo .b{color:var(--blue)}
+  .logo .bolt{color:#fff; margin-right:6px}
+  header .sub{font-size:12px; color:var(--txt2); font-weight:500; margin-left:6px}
+  .meta{margin-left:auto; font-size:11.5px; color:var(--txt2); font-weight:600; letter-spacing:.02em;
+        font-variant-numeric:tabular-nums; display:flex; gap:14px}
+  .meta b{color:var(--txt); font-weight:700}
+  .stage{display:flex; justify-content:center; align-items:center; flex:1; min-height:0;
+         background:
+           radial-gradient(120% 120% at 0% 0%, rgba(74,124,158,.10), transparent 60%),
+           radial-gradient(120% 120% at 100% 100%, rgba(142,59,95,.09), transparent 60%),
+           #101012;
+         border:1px solid var(--line); border-radius:16px; padding:20px; overflow:hidden}
+  canvas#cv{display:block; max-width:100%; max-height:64vh; border-radius:18px;
+            box-shadow:0 18px 60px rgba(0,0,0,.55); background:#000}
+  .controls{display:flex; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap}
+  button{font-family:inherit; font-weight:600; font-size:13px; color:var(--txt);
+          background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+          height:38px; padding:0 16px; cursor:pointer; display:inline-flex; align-items:center; gap:7px;
+          transition:.16s background, .16s opacity}
+  button:hover{background:#2b2e35}
+  button:disabled{opacity:.4; cursor:default}
+  button.primary{background:var(--blue2); border-color:transparent; color:#fff}
+  button.primary:hover{background:var(--blue)}
+  button.rec{background:#3a1f28; border-color:rgba(194,106,122,.4); color:#f0b9c4}
+  button.rec:hover{background:#4a2632}
+  button.rec.armed{background:#c0344f; border-color:transparent; color:#fff}
+  .scrub{flex:1; min-width:160px; display:flex; align-items:center; gap:10px}
+  input[type=range]{flex:1; accent-color:var(--blue); height:4px}
+  .time{font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--txt2); font-weight:600; min-width:92px; text-align:right}
+  .status{font-size:12px; color:var(--txt2); font-weight:600; margin-left:2px; min-height:16px}
+  .status.live{color:#f0b9c4}
+  .status.done{color:var(--green)}
+  .tl{margin-top:16px; border-top:1px solid var(--line); padding-top:14px}
+  .tl h3{font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--txt2); margin-bottom:10px}
+  .beats{display:flex; flex-direction:column; gap:6px}
+  .beat{display:grid; grid-template-columns:64px 1fr; gap:12px; font-size:12.5px; padding:5px 8px; border-radius:8px}
+  .beat .tt{font-variant-numeric:tabular-nums; color:var(--blue); font-weight:700}
+  .beat .lbl{color:var(--txt2)}
+  .beat.on{background:rgba(90,159,212,.10)}
+  .beat.on .lbl{color:var(--txt)}
+  .hint{font-size:11px; color:var(--txt2); margin-top:12px; line-height:1.5}
+  .hint b{color:#5a9fd4; font-weight:600}
+</style>
+</head>
+<body>
+<div class="studio">
+  <header>
+    <div class="logo"><span class="bolt">&#9889;</span>mind<span class="b">kraft</span></div>
+    <span class="sub">Motion Studio</span>
+    <div class="meta">
+      <span><b id="mRes">–</b> px</span>
+      <span><b id="mFps">–</b> fps</span>
+      <span><b id="mDur">–</b> s</span>
+    </div>
+  </header>
+
+  <div class="stage"><canvas id="cv" width="1080" height="1920"></canvas></div>
+
+  <div class="controls">
+    <button class="primary" id="playBtn" onclick="togglePlay()">&#9654; Play</button>
+    <button id="restartBtn" onclick="restart()">&#8635; Restart</button>
+    <button class="rec" id="recBtn" onclick="toggleRecord()">&#9679; Record &amp; download</button>
+    <div class="scrub">
+      <input type="range" id="scrub" min="0" max="1000" value="0" oninput="onScrub(this.value)">
+      <span class="time" id="time">0.00 / 0.00s</span>
+    </div>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="tl">
+    <h3>Scene timeline</h3>
+    <div class="beats" id="beats"></div>
+    <div class="hint">Recording saves a <b>.webm</b> video (no audio) in real time &mdash; let it play to the end.
+      Generate the matching soundtrack in Lyria with the prompt provided in chat, then combine video + audio in any editor.</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   MINDKRAFT MOTION STUDIO — ENGINE + BRAND KIT   (do not edit this block)
+   The only thing you change per animation is the SCENE object further down.
+   ========================================================================== */
+
+/* ---- Brand tokens (from the Mindkraft design brief) --------------------- */
+const COL = {
+  bg:'#1a1a1a', card:'#22242a', cardEdge:'rgba(255,255,255,0.045)',
+  recess:'rgba(255,255,255,0.025)', hair:'rgba(255,255,255,0.05)',
+  txt:'#ffffff', txt2:'#b0b0b0', txt3:'rgba(255,255,255,0.44)', txt4:'rgba(255,255,255,0.22)',
+  blue:'#5a9fd4', blueDk:'#4a7c9e', green:'#4ade80', greenXp:'#6dbf7e',
+  coral:'#fb923c', coralBg:'rgba(251,146,60,0.14)', amber:'#fbbf24', amberBg:'rgba(251,191,36,0.13)',
+  red:'#c26a7a', redDk:'#8e3b5f', gold:'#f5c563', track:'rgba(255,255,255,0.07)',
+  // dimension accents
+  dim:{focus:'#5a9fd4', body:'#6b8b6f', mind:'#7a5d9e', social:'#c26a7a', craft:'#b88242'}
+};
+
+/* ---- Math + easing ------------------------------------------------------ */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const E={
+  linear:t=>t,
+  inQuad:t=>t*t,
+  outQuad:t=>1-(1-t)*(1-t),
+  inOut:t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,
+  outCubic:t=>1-Math.pow(1-t,3),
+  inOutCubic:t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,
+  outExpo:t=>t>=1?1:1-Math.pow(2,-10*t),
+  outBack:(t,s=1.70158)=>1+(s+1)*Math.pow(t-1,3)+s*Math.pow(t-1,2),
+  outElastic:t=>t<=0?0:t>=1?1:Math.pow(2,-10*t)*Math.sin((t*10-0.75)*((2*Math.PI)/3))+1
+};
+/* progress 0..1 of a sub-interval starting at t0 lasting dur */
+const prog=(t,t0,dur)=>clamp((t-t0)/dur,0,1);
+/* eased tween of a value across [t0, t0+dur] */
+const tween=(t,t0,dur,from,to,ease=E.outCubic)=>from+(to-from)*ease(prog(t,t0,dur));
+/* 1 only while t in [t0, t0+dur], used to gate effects */
+const within=(t,t0,dur)=>t>=t0&&t<=t0+dur;
+
+/* ---- Canvas helpers ----------------------------------------------------- */
+const fn=(w,s)=>`${w} ${s}px 'Inter',-apple-system,sans-serif`;
+function rr(c,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  c.beginPath();
+  c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+function shadow(c,col,blur,oy=0){c.shadowColor=col;c.shadowBlur=blur;c.shadowOffsetY=oy;}
+function noShadow(c){c.shadowColor='transparent';c.shadowBlur=0;c.shadowOffsetY=0;}
+
+/* atmospheric background sized to the canvas (the "scene" the app floats in) */
+function sceneBg(c,W,H,energy=0){
+  c.fillStyle=COL.bg; c.fillRect(0,0,W,H);
+  const pulse=1+0.06*Math.sin(energy*Math.PI*2);
+  const blobs=[
+    [W*0.12,H*0.10,Math.max(W,H)*0.55*pulse,'rgba(74,124,158,0.20)'],
+    [W*0.92,H*0.94,Math.max(W,H)*0.50*pulse,'rgba(142,59,95,0.17)'],
+    [W*0.5,H*0.5,Math.max(W,H)*0.34,'rgba(58,58,92,0.12)']
+  ];
+  for(const[x,y,r,col]of blobs){
+    const g=c.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,col); g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+  }
+}
+
+/* the Mindkraft wordmark */
+function mkLogo(c,x,y,size,align='left'){
+  c.save(); c.textBaseline='alphabetic'; c.textAlign='left';
+  c.font=fn(800,size);
+  const boltW=size*1.05, gap=size*0.30;
+  const mindW=c.measureText('mind').width, kraftW=c.measureText('kraft').width;
+  const total=boltW+gap+mindW+kraftW;
+  let sx=x; if(align==='center')sx=x-total/2; else if(align==='right')sx=x-total;
+  c.font=fn(800,size*1.0); c.fillStyle='#fff';
+  shadow(c,'rgba(90,159,212,0.55)',size*0.5); c.fillText('\u26A1',sx,y); noShadow(c);
+  c.font=fn(800,size); c.fillStyle='#fff'; c.fillText('mind',sx+boltW+gap,y);
+  c.fillStyle=COL.blue; c.fillText('kraft',sx+boltW+gap+mindW,y);
+  c.restore();
+  return total;
+}
+
+/* phone device frame; draws screen content via callback, clipped to the screen */
+function phone(c,x,y,w,h,drawScreen){
+  c.save();
+  const r=w*0.12;
+  // outer body
+  shadow(c,'rgba(0,0,0,0.6)',w*0.16,w*0.06);
+  rr(c,x,y,w,h,r); c.fillStyle='#0a0b0d'; c.fill(); noShadow(c);
+  // metal rim highlight
+  rr(c,x,y,w,h,r); c.lineWidth=Math.max(1.5,w*0.006); c.strokeStyle='rgba(255,255,255,0.10)'; c.stroke();
+  // screen
+  const bz=w*0.035, sx=x+bz, sy=y+bz, sw=w-bz*2, sh=h-bz*2, sr=r-bz;
+  c.save(); rr(c,sx,sy,sw,sh,sr); c.clip();
+  c.fillStyle=COL.bg; c.fillRect(sx,sy,sw,sh);
+  drawScreen(c,sx,sy,sw,sh);
+  c.restore();
+  // dynamic-island notch
+  const nw=sw*0.30, nh=sh*0.018, nx=sx+(sw-nw)/2, ny=sy+sh*0.018;
+  rr(c,nx,ny,nw,nh,nh/2); c.fillStyle='#000'; c.fill();
+  // top screen glow
+  c.restore();
+}
+
+/* card material per the brief: surface, not borders */
+function card(c,x,y,w,h,o={}){
+  const r=o.r??Math.min(14,h*0.16);
+  c.save();
+  shadow(c,'rgba(0,0,0,0.45)',h*0.28,h*0.06);
+  rr(c,x,y,w,h,r); c.fillStyle=o.bg||COL.card; c.fill(); noShadow(c);
+  // top inset highlight + bottom inset shadow (approximated with hairlines)
+  rr(c,x,y,w,h,r); c.lineWidth=1; c.strokeStyle=COL.cardEdge; c.stroke();
+  c.save(); rr(c,x,y,w,h,r); c.clip();
+  c.strokeStyle='rgba(255,255,255,0.075)'; c.lineWidth=1;
+  c.beginPath(); c.moveTo(x+r*0.4,y+0.5); c.lineTo(x+w-r*0.4,y+0.5); c.stroke();
+  c.restore();
+  // dimension left-edge bar
+  if(o.dim){
+    const bw=Math.max(3,w*0.012);
+    rr(c,x,y+r*0.5,bw,h-r,bw/2);
+    c.fillStyle=o.dim; c.fill();
+    if(o.dimGlow){ shadow(c,o.dim,12); c.fill(); noShadow(c); }
+  }
+  c.restore();
+}
+
+/* XP progress bar (track + gradient fill) */
+function xpBar(c,x,y,w,h,pct){
+  c.save();
+  rr(c,x,y,w,h,h/2); c.fillStyle=COL.track; c.fill();
+  pct=clamp(pct,0,1);
+  if(pct>0.001){
+    rr(c,x,y,w*pct,h,h/2);
+    const g=c.createLinearGradient(x,0,x+w,0);
+    g.addColorStop(0,COL.blueDk); g.addColorStop(1,COL.blue);
+    c.fillStyle=g; shadow(c,'rgba(90,159,212,0.5)',h*1.4); c.fill(); noShadow(c);
+  }
+  c.restore();
+}
+
+/* pill chip; kind: 'xp' | 'streak' | 'warn' | 'counter' */
+function chip(c,x,y,text,kind='counter',scale=1){
+  c.save(); c.font=fn(700,15*scale); c.textBaseline='middle';
+  const padX=12*scale, h=24*scale, tw=c.measureText(text).width, w=tw+padX*2;
+  let bg,fg;
+  if(kind==='xp'){bg=null;fg=COL.greenXp;}
+  else if(kind==='streak'){bg=COL.coralBg;fg=COL.coral;}
+  else if(kind==='warn'){bg=COL.amberBg;fg=COL.amber;}
+  else{bg='rgba(90,159,212,0.16)';fg=COL.blue;}
+  if(bg){rr(c,x,y,w,h,h/2);c.fillStyle=bg;c.fill();}
+  c.fillStyle=fg; c.textAlign='left'; c.fillText(text,x+padX,y+h/2);
+  c.restore();
+  return w;
+}
+
+/* big tabular number (level display) */
+function bigNum(c,x,y,text,size,color=COL.txt){
+  c.save(); c.font=fn(800,size); c.fillStyle=color;
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(text,x,y); c.restore();
+}
+
+/* toast pill */
+function toast(c,cx,y,text){
+  c.save(); c.font=fn(600,26); c.textBaseline='middle';
+  const tw=c.measureText(text).width, padX=34, h=64, w=tw+padX*2, x=cx-w/2;
+  shadow(c,'rgba(0,0,0,0.5)',30,8);
+  rr(c,x,y,w,h,h/2); c.fillStyle=COL.card; c.fill(); noShadow(c);
+  rr(c,x,y,w,h,h/2); c.lineWidth=1; c.strokeStyle=COL.cardEdge; c.stroke();
+  c.fillStyle=COL.txt; c.textAlign='center'; c.fillText(text,cx,y+h/2);
+  c.restore();
+}
+
+/* expanding tap ripple (p = 0..1) */
+function tapRipple(c,x,y,p,col=COL.blue){
+  if(p<=0||p>=1)return;
+  c.save();
+  c.beginPath(); c.arc(x,y,lerp(8,80,E.outCubic(p)),0,Math.PI*2);
+  c.strokeStyle=col; c.globalAlpha=1-p; c.lineWidth=4; c.stroke();
+  c.beginPath(); c.arc(x,y,lerp(2,30,E.outCubic(p)),0,Math.PI*2);
+  c.fillStyle=col; c.globalAlpha=(1-p)*0.4; c.fill();
+  c.restore();
+}
+
+/* indicator primitive: glowing underline */
+function indicator(c,cx,y,w,col=COL.blue){
+  c.save();
+  const g=c.createLinearGradient(cx-w/2,0,cx+w/2,0);
+  g.addColorStop(0,'transparent'); g.addColorStop(.3,col); g.addColorStop(.7,col); g.addColorStop(1,'transparent');
+  shadow(c,col,14); c.fillStyle=g; c.fillRect(cx-w/2,y,w,2.4); c.restore();
+}
+
+/* golden level-up sparkle burst (p = 0..1) */
+function sparkleBurst(c,x,y,p,n=14,rad=120){
+  if(p<=0)return;
+  c.save();
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2 + p*0.6;
+    const d=E.outExpo(p)*rad*(0.6+0.4*((i*37)%n)/n);
+    const px=x+Math.cos(a)*d, py=y+Math.sin(a)*d;
+    const s=lerp(7,1,p);
+    c.globalAlpha=(1-p);
+    c.fillStyle=COL.gold; shadow(c,'rgba(245,197,99,0.9)',16);
+    c.beginPath(); c.arc(px,py,s,0,Math.PI*2); c.fill();
+  }
+  noShadow(c); c.restore();
+}
+
+/* ---------------------------------------------------------------------------
+   SCENE — EDIT THIS OBJECT ONLY.
+   meta: title, w, h, fps, duration (seconds)
+   timeline: array of {t, label} beats (drives the readout + your audio prompt)
+   draw(c, t): renders ONE frame at elapsed time t (seconds). Pure function of t.
+   ------------------------------------------------------------------------- */
+// ============ SCENE:BEGIN — replace everything down to SCENE:END ============
+/* ---------------------------------------------------------------------------
+   PROMO KIT — shared helpers for the "A trick on your brain" B-roll scenes.
+   Lives inside the SCENE block so the engine above stays untouched. Every
+   helper is a pure function of its arguments; the grain tile and Path2D cache
+   are fixed-seed caches, so frames stay deterministic in t.
+   ------------------------------------------------------------------------- */
+const K = (() => {
+  const TAU = Math.PI * 2;
+  const hash = (i, s = 0) => { const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453; return x - Math.floor(x); };
+  const hexA = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  const fmtN = n => Math.round(n).toLocaleString('en-US');
+
+  /* ---- icons: 24-unit stroke geometry (Feather/Lucide style), drawn — never emoji ---- */
+  const ICONS = {
+    check:   ['M20 6 9 17 4 12'],
+    heart:   ['M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'],
+    bell:    ['M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9', 'M13.73 21a2 2 0 0 1-3.46 0'],
+    lock:    ['r:3,11,18,11,2', 'M7 11V7a5 5 0 0 1 10 0v4'],
+    unlock:  ['r:3,11,18,11,2', 'M7 11V7a5 5 0 0 1 9.9-1'],
+    gift:    ['M20 12v10H4V12', 'r:2,7,20,5,1', 'M12 22V7', 'M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z', 'M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z'],
+    zap:     ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'],
+    bag:     ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z', 'M3 6h18', 'M16 10a4 4 0 0 1-8 0'],
+    play:    ['M6 3.5l13 8.5-13 8.5V3.5z'],
+    userPlus:['M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'c:8.5,7,4', 'M20 8v6', 'M23 11h-6'],
+    users:   ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'c:9,7,4', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
+    clock:   ['c:12,12,10', 'M12 6v6l4 2'],
+    trend:   ['M23 6l-9.5 9.5-5-5L1 18', 'M17 6h6v6'],
+    book:    ['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'],
+    pulse:   ['M22 12h-4l-3 9L9 3l-3 9H2'],
+    code:    ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'],
+    music:   ['M9 18V5l12-2v13', 'c:6,18,3', 'c:18,16,3'],
+    dollar:  ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'],
+    star:    ['M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
+    tag:     ['M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z', 'c:7,7,1'],
+    chat:    ['M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z'],
+    cap:     ['M22 10 12 5 2 10l10 5 10-5z', 'M6 12v5c3 3 9 3 12 0v-5', 'M22 10v6'],
+    flame:   ['M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z'],
+    trophy:  ['M6 9H4.5a2.5 2.5 0 0 1 0-5H6', 'M18 9h1.5a2.5 2.5 0 0 0 0-5H18', 'M4 22h16', 'M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22', 'M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22', 'M18 2H6v7a6 6 0 0 0 12 0V2z'],
+    calendar:['r:3,4,18,18,2', 'M16 2v4', 'M8 2v4', 'M3 10h18'],
+    sun:     ['c:12,12,4', 'M12 2v2', 'M12 20v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M2 12h2', 'M20 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4'],
+    compass: ['c:12,12,10', 'M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z'],
+    feather: ['M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z', 'M16 8 2 22', 'M17.5 15H9'],
+    link:    ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
+    arrowUp: ['M12 19V5', 'M5 12l7-7 7 7'],
+    target:  ['c:12,12,10', 'c:12,12,6', 'c:12,12,2'],
+  };
+  const P2 = {};
+  function paths(name) {
+    if (!P2[name]) P2[name] = ICONS[name].map(d => {
+      const p = new Path2D();
+      if (d.startsWith('c:')) { const [x, y, r] = d.slice(2).split(',').map(Number); p.arc(x, y, r, 0, TAU); return p; }
+      if (d.startsWith('r:')) { const [x, y, w, h, r] = d.slice(2).split(',').map(Number); p.roundRect(x, y, w, h, r); return p; }
+      return new Path2D(d);
+    });
+    return P2[name];
+  }
+  function icon(c, name, x, y, size, col, o = {}) {
+    c.save();
+    if (o.alpha != null) c.globalAlpha *= o.alpha;
+    c.translate(x, y);
+    if (o.rot) c.rotate(o.rot);
+    c.scale(size / 24, size / 24); c.translate(-12, -12);
+    c.lineWidth = o.lw || 2; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.strokeStyle = col; c.fillStyle = o.fillCol || col;
+    if (o.glow) shadow(c, o.glow, o.blur || 16);
+    for (const p of paths(name)) { if (o.fill) c.fill(p); c.stroke(p); }
+    c.restore();
+  }
+
+  /* ---- text ---- */
+  function text(c, s, x, y, o = {}) {
+    c.save();
+    c.font = fn(o.w || 600, o.s || 40);
+    c.fillStyle = o.col || COL.txt;
+    c.textAlign = o.align || 'left';
+    c.textBaseline = o.base || 'middle';
+    if (o.track) { c.letterSpacing = o.track + 'px'; if (c.textAlign === 'center') x += o.track / 2; else if (c.textAlign === 'right') x += o.track; }
+    if (o.alpha != null) c.globalAlpha *= o.alpha;
+    if (o.glow) shadow(c, o.glow, o.blur || 20);
+    c.fillText(s, x, y);
+    c.restore();
+  }
+  function measure(c, s, w, size, track = 0) {
+    c.save(); c.font = fn(w, size); if (track) c.letterSpacing = track + 'px';
+    const m = c.measureText(s).width; c.restore(); return m;
+  }
+  /* a headline that reveals word by word: list = [{s, at, col}] */
+  function words(c, list, cx, y, t, o = {}) {
+    const w = o.w || 800, size = o.s || 96, gap = size * 0.28;
+    const ws = list.map(it => measure(c, it.s, w, size, o.track || 0));
+    let x = cx - (ws.reduce((a, b) => a + b, 0) + gap * (list.length - 1)) / 2;
+    list.forEach((it, i) => {
+      const p = prog(t, it.at, o.dur || 0.42);
+      if (p > 0) {
+        const oy = lerp(size * 0.45, 0, E.outBack(p));
+        text(c, it.s, x, y + oy, { w, s: size, col: it.col || COL.txt, alpha: p * (o.alpha ?? 1), track: o.track, glow: it.glow });
+      }
+      x += ws[i] + gap;
+    });
+  }
+
+  /* ---- atmosphere ---- */
+  function glow(c, x, y, r, col, a) {
+    if (a <= 0) return;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, hexA(col, a)); g.addColorStop(1, hexA(col, 0));
+    c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function vignette(c, W, H, a = 0.5) {
+    const g = c.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.42, W / 2, H * 0.48, Math.max(W, H) * 0.72);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`);
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  let grainTile = null;
+  function grain(c, W, H, t, a = 0.05) {
+    if (!grainTile) {
+      grainTile = document.createElement('canvas'); grainTile.width = grainTile.height = 256;
+      const g = grainTile.getContext('2d'), im = g.createImageData(256, 256);
+      for (let i = 0; i < 65536; i++) { const v = Math.floor(hash(i, 7) * 255); im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+      g.putImageData(im, 0, 0);
+    }
+    // static grain: dithers the dark gradients against banding without costing bitrate
+    c.save(); c.globalAlpha = a; c.globalCompositeOperation = 'soft-light';
+    c.fillStyle = c.createPattern(grainTile, 'repeat'); c.fillRect(0, 0, W, H);
+    c.restore();
+  }
+  /* fade the whole frame in/out of black — soft in/out handles for the edit */
+  function fadeEdges(c, W, H, t, dur, fin = 0.12, fout = 0.18) {
+    const a = Math.max(1 - prog(t, 0, fin), prog(t, dur - fout, fout));
+    if (a > 0.001) { c.save(); c.globalAlpha = a; c.fillStyle = '#0d0d0f'; c.fillRect(0, 0, W, H); c.restore(); }
+  }
+  function flash(c, W, H, p, col = '#ffffff', a = 0.35) {
+    if (p <= 0 || p >= 1) return;
+    c.save(); c.globalAlpha = (1 - E.outCubic(p)) * a; c.fillStyle = col; c.fillRect(0, 0, W, H); c.restore();
+  }
+  const shake = (t, t0, dur, amp, seed = 1) => {
+    if (t < t0 || t > t0 + dur) return [0, 0];
+    const k = 1 - prog(t, t0, dur), f = Math.floor(t * 60);
+    return [(hash(f, seed) - 0.5) * 2 * amp * k, (hash(f, seed + 9) - 0.5) * 2 * amp * k];
+  };
+
+  /* ---- particles (non-gold; gold is sparkleBurst, reserved for level-ups) ---- */
+  function burst(c, x, y, p, n, rad, col, seed = 0, size = 7) {
+    if (p <= 0 || p >= 1) return;
+    c.save(); c.fillStyle = col; shadow(c, col, 14);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + hash(i, seed) * 0.6;
+      const d = E.outExpo(p) * rad * (0.45 + 0.55 * hash(i, seed + 1));
+      c.globalAlpha = (1 - p) * (0.6 + 0.4 * hash(i, seed + 2));
+      c.beginPath(); c.arc(x + Math.cos(a) * d, y + Math.sin(a) * d - p * p * rad * 0.25, lerp(size, 1.2, p), 0, TAU); c.fill();
+    }
+    c.restore();
+  }
+
+  /* ---- progress ring ---- */
+  function ring(c, x, y, r, pct, col, lw, track = COL.track) {
+    c.save(); c.lineCap = 'round'; c.lineWidth = lw;
+    c.strokeStyle = track; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+    if (pct > 0.001) {
+      c.strokeStyle = col; shadow(c, col, 16);
+      c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(pct, 0, 1)); c.stroke();
+    }
+    c.restore();
+  }
+
+  /* ---- the completion circle + animated check (from the app's activity card) ---- */
+  function checkCircle(c, cx, cy, r, done, k = 1) {
+    c.save();
+    c.beginPath(); c.arc(cx, cy, r, 0, TAU);
+    if (done) {
+      c.fillStyle = COL.green; shadow(c, 'rgba(74,222,128,0.6)', 16); c.fill(); noShadow(c);
+      c.strokeStyle = '#0c1f12'; c.lineWidth = Math.max(3, r * 0.2); c.lineCap = 'round'; c.lineJoin = 'round';
+      const a = clamp(k * 2, 0, 1), b = clamp((k - 0.5) * 2, 0, 1);
+      c.beginPath(); c.moveTo(cx - r * 0.42, cy);
+      c.lineTo(lerp(cx - r * 0.42, cx - r * 0.1, a), lerp(cy, cy + r * 0.32, a));
+      if (k > 0.5) c.lineTo(lerp(cx - r * 0.1, cx + r * 0.45, b), lerp(cy + r * 0.32, cy - r * 0.4, b));
+      c.stroke();
+    } else {
+      c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = Math.max(2, r * 0.07); c.stroke();
+    }
+    c.restore();
+  }
+
+  /* ---- activity card: dimension edge, icon tile, name, XP chip, completion circle ---- */
+  function activity(c, x, y, w, h, o) {
+    const done = !!o.done;
+    c.save();
+    if (o.pulse) { const s = 1 + 0.045 * Math.sin(clamp(o.pulse, 0, 1) * Math.PI); c.translate(x + w / 2, y + h / 2); c.scale(s, s); c.translate(-(x + w / 2), -(y + h / 2)); }
+    card(c, x, y, w, h, { dim: o.dim, dimGlow: done, bg: done ? '#23271f' : COL.card, r: o.r });
+    const bs = h * 0.5, bx = x + w * 0.045 + bs / 2 + 4, by = y + h / 2;
+    rr(c, bx - bs / 2, by - bs / 2, bs, bs, bs * 0.3); c.fillStyle = hexA(o.dim, 0.16); c.fill();
+    icon(c, o.icon || 'check', bx, by, bs * 0.52, o.dim, { lw: 2.2 });
+    const tx = bx + bs / 2 + w * 0.045;
+    text(c, o.name, tx, y + h * (o.xp ? 0.37 : 0.5), { w: 600, s: o.fs || h * 0.24 });
+    if (o.xp) chip(c, tx - 12 * h * 0.011 * (done ? 1 : 0), y + h * 0.53, o.xp, done ? 'xp' : 'counter', h * 0.011);
+    if (o.right) o.right(c, x + w - h * 0.5, y + h / 2);
+    else checkCircle(c, x + w - h * 0.5, y + h / 2, h * 0.22, done, o.k ?? 1);
+    c.restore();
+  }
+
+  /* ---- notification toast (the instant-gratification world) ---- */
+  function notif(c, x, y, w, h, o) {
+    card(c, x, y, w, h, { r: h * 0.26 });
+    const bs = h * 0.58, bx = x + h * 0.21 + bs / 2, by = y + h / 2;
+    rr(c, bx - bs / 2, by - bs / 2, bs, bs, bs * 0.28); c.fillStyle = hexA(o.col, 0.18); c.fill();
+    icon(c, o.icon, bx, by, bs * 0.5, o.col, { lw: 2.3, fill: o.fillIcon });
+    const tx = bx + bs / 2 + h * 0.2;
+    text(c, o.title, tx, y + h * 0.36, { w: 700, s: h * 0.2 });
+    text(c, o.sub, tx, y + h * 0.66, { w: 500, s: h * 0.17, col: COL.txt3 });
+    if (o.time) text(c, o.time, x + w - h * 0.24, y + h * 0.36, { w: 600, s: h * 0.15, col: COL.txt4, align: 'right' });
+  }
+
+  /* ---- the app's LEVEL UP! reward card (popIn: scale .6→1 with overshoot) ---- */
+  function levelCard(c, cx, cy, w, p, o = {}) {
+    if (p <= 0) return;
+    const h = w * 0.9, s = lerp(0.6, 1, E.outBack(clamp(p, 0, 1)));
+    c.save(); c.globalAlpha *= clamp(p * 2, 0, 1);
+    c.translate(cx, cy); c.scale(s, s); c.translate(-cx, -cy);
+    const x = cx - w / 2, y = cy - h / 2;
+    shadow(c, 'rgba(245,197,99,0.30)', 70);
+    rr(c, x, y, w, h, w * 0.06); c.fillStyle = COL.card; c.fill(); noShadow(c);
+    rr(c, x, y, w, h, w * 0.06); c.lineWidth = 3; c.strokeStyle = hexA(COL.gold, 0.55); c.stroke();
+    const ip = prog(p, 0.25, 0.6);
+    icon(c, o.icon || 'gift', cx, y + h * 0.26, w * 0.2, COL.gold, { lw: 1.8, rot: lerp(-0.35, 0, E.outBack(ip)), glow: 'rgba(245,197,99,0.8)', blur: 24 });
+    text(c, o.kicker || 'LEVEL UP!', cx, y + h * 0.47, { w: 800, s: w * 0.052, col: COL.gold, align: 'center', track: w * 0.012 });
+    text(c, o.title || 'You earned a reward!', cx, y + h * 0.59, { w: 700, s: w * 0.075, align: 'center' });
+    text(c, o.desc || '', cx, y + h * 0.69, { w: 500, s: w * 0.045, col: COL.txt2, align: 'center' });
+    const bw = w * 0.62, bh = w * 0.14, bx = cx - bw / 2, by = y + h * 0.78;
+    rr(c, bx, by, bw, bh, bh / 2); c.fillStyle = COL.blueDk; c.fill();
+    text(c, o.cta || 'Claim Reward', cx, by + bh / 2, { w: 700, s: w * 0.05, align: 'center' });
+    c.restore();
+  }
+
+  /* ---- ⚡ bolt drawn as a shape (logo mark) ---- */
+  function bolt(c, x, y, size, col = '#fff', glowA = 0.6) {
+    icon(c, 'zap', x, y, size, col, { fill: true, lw: 1.2, glow: `rgba(90,159,212,${glowA})`, blur: size * 0.6 });
+  }
+
+  return { TAU, hash, hexA, fmtN, icon, text, measure, words, glow, vignette, grain, fadeEdges, flash, shake, burst, ring, checkCircle, activity, notif, levelCard, bolt };
+})();
+
+// ============ 03 — COMPOUNDING ============================================
+// VO @ 00:33.13 → 00:41.29  "If you're not born with it, then you have to
+// systematically, with discipline, invest for years before compounding starts
+// to kick in."
+// Hero moment: yearly bars are almost all deposits (blue) for years — then the
+// growth (green) takes over and the chart rockets.
+const CP = (() => {
+  const YRS = 30, DEP = 2400, R = 0.1;
+  const total = y => DEP * ((Math.pow(1 + R, y) - 1) / R);
+  const at = y => y <= 12 ? 1.28 + (y - 1) * 0.353      // steady: one deposit per beat
+               : y <= 22 ? 5.52 + (y - 13) * 0.17       // years blur by
+               : 7.28 + (y - 23) * 0.05;                // kick-in: the rest rockets in
+  return { YRS, DEP, total, at, KICK: 7.28 };
+})();
+
+const SCENE = {
+  meta: { title: 'Trick 03 — Compounding', w: 1080, h: 1920, fps: 60, duration: 8.16 },
+
+  timeline: [
+    { t: 0.0, label: 'Portfolio card composes at $0' },
+    { t: 1.28, label: '“systematically, with discipline” — one +$2,400 deposit per beat' },
+    { t: 5.52, label: '“for years before compounding” — years blur by, chart zooms out' },
+    { t: CP.KICK, label: '“kick in” — growth (green) takes over, the chart rockets' },
+    { t: 7.7, label: 'COMPOUNDING chip lands; hold' },
+  ],
+
+  cues: [
+    { t: 0.0, s: 'popIn' },
+    ...Array.from({ length: 22 }, (_, i) => ({ t: CP.at(i + 1), s: 'deposit', n: i })),
+    { t: 5.52, s: 'riser', dur: 1.76 },
+    { t: CP.KICK, s: 'impact' },
+    { t: CP.KICK, s: 'rocket', dur: 0.45 },
+    { t: 7.7, s: 'chipPop' },
+  ],
+
+  draw(c, t) {
+    const W = this.meta.w, H = this.meta.h;
+    const kick = prog(t, CP.KICK, 0.5);
+    sceneBg(c, W, H, kick * 0.5);
+    const [shx, shy] = K.shake(t, CP.KICK, 0.4, 10);
+    c.save(); c.translate(shx, shy);
+
+    const inP = prog(t, -0.18, 0.55);
+    const x = 70, w = 940, y = 470 + lerp(80, 0, E.outBack(inP)), h = 900;
+    K.glow(c, 540, y + h * 0.6, 720, COL.green, 0.04 + 0.12 * kick);
+    K.glow(c, 540, y + h * 0.4, 700, COL.blue, 0.10);
+    c.save(); c.globalAlpha = clamp(inP * 1.5, 0, 1);
+    card(c, x, y, w, h, { r: 36 });
+
+    // ---- header: kicker, value counter, plan ----
+    let shown = 0, contrib = 0;
+    for (let yr = 1; yr <= CP.YRS; yr++) {
+      const p = prog(t, CP.at(yr), 0.22);
+      if (p <= 0) break;
+      shown = yr - 1 + p;
+    }
+    const whole = Math.floor(shown), part = shown - whole;
+    const val = whole > 0 ? lerp(CP.total(whole), CP.total(whole + 1), part) : CP.total(1) * part;
+    contrib = CP.DEP * shown;
+    K.text(c, 'PORTFOLIO', x + 60, y + 78, { w: 800, s: 28, col: COL.txt4, track: 8 });
+    const vs = 1 + 0.08 * Math.sin(Math.PI * kick);
+    c.save(); c.translate(x + 60, y + 178); c.scale(vs, vs);
+    K.text(c, '$' + K.fmtN(val), 0, 0, { w: 800, s: 112, col: t >= CP.KICK ? COL.green : COL.txt, glow: t >= CP.KICK ? 'rgba(74,222,128,0.45)' : null });
+    c.restore();
+    K.text(c, '$200 / month  ·  year ' + Math.max(1, Math.ceil(shown)), x + 62, y + 262, { w: 600, s: 30, col: COL.txt3 });
+
+    // ---- chart ----
+    const cx0 = x + 60, cx1 = x + w - 60, cy1 = y + h - 110, cy0 = y + 340;
+    const cw = cx1 - cx0, ch = cy1 - cy0;
+    // axes zoom out as years accumulate
+    const ymax = t < 5.52 ? 60000 : t < CP.KICK ? tween(t, 5.52, 1.7, 60000, 175000, E.inOut) : tween(t, CP.KICK, 0.55, 175000, 420000, E.outCubic);
+    const nSlots = t < 5.52 ? 12 : t < CP.KICK ? tween(t, 5.52, 1.7, 12, 22, E.inOut) : tween(t, CP.KICK, 0.4, 22, 30, E.outCubic);
+    // gridlines
+    c.save(); c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 2;
+    for (let i = 1; i <= 3; i++) { const gy = cy1 - ch * i / 4; c.beginPath(); c.moveTo(cx0, gy); c.lineTo(cx1, gy); c.stroke(); }
+    c.restore();
+    const slot = cw / nSlots, bw = slot * 0.64;
+    const tops = [];
+    for (let yr = 1; yr <= CP.YRS; yr++) {
+      const p = prog(t, CP.at(yr), 0.28);
+      if (p <= 0) break;
+      const e = E.outBack(p);
+      const bx = cx0 + (yr - 0.5) * slot - bw / 2;
+      const tot = CP.total(yr), dep = CP.DEP * yr;
+      const hT = Math.min(ch * 1.25, (tot / ymax) * ch) * e, hD = Math.min(hT, (dep / ymax) * ch * e);
+      // deposits (blue) at the base, growth (green) stacked on top
+      rr(c, bx, cy1 - hD, bw, hD, Math.min(8, bw / 3)); c.fillStyle = COL.blueDk; c.fill();
+      if (hT - hD > 1) {
+        rr(c, bx, cy1 - hT, bw, hT - hD + 4, Math.min(8, bw / 3));
+        c.fillStyle = COL.green; if (t >= CP.KICK) shadow(c, 'rgba(74,222,128,0.5)', 14); c.fill(); noShadow(c);
+      }
+      tops.push([bx + bw / 2, cy1 - hT]);
+      // +$2,400 floaters for the steady years
+      if (yr <= 12) {
+        const fp = prog(t, CP.at(yr), 0.34);
+        if (fp > 0 && fp < 1) K.text(c, '+$2,400', bx + bw / 2, cy1 - hT - 30 - E.outCubic(fp) * 60, { w: 800, s: 30, col: COL.blue, align: 'center', alpha: 1 - fp });
+      }
+    }
+    // growth curve over the tops once compounding kicks in
+    if (kick > 0 && tops.length > 1) {
+      c.save(); c.globalAlpha = kick; c.lineWidth = 6; c.lineJoin = 'round'; c.lineCap = 'round';
+      c.strokeStyle = COL.green; shadow(c, 'rgba(74,222,128,0.9)', 22);
+      c.beginPath(); tops.forEach(([px, py], i) => i ? c.lineTo(px, py) : c.moveTo(px, py)); c.stroke();
+      c.restore();
+    }
+    // baseline + legend
+    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(cx0, cy1, cw, 2);
+    const ly = cy1 + 58;
+    rr(c, cx0, ly - 12, 24, 24, 6); c.fillStyle = COL.blueDk; c.fill();
+    K.text(c, 'What you put in', cx0 + 38, ly, { w: 600, s: 28, col: COL.txt2 });
+    rr(c, cx0 + 330, ly - 12, 24, 24, 6); c.fillStyle = COL.green; c.fill();
+    K.text(c, 'Growth', cx0 + 368, ly, { w: 600, s: 28, col: COL.txt2 });
+    c.restore();
+
+    // ---- COMPOUNDING chip ----
+    const cp = prog(t, 7.7, 0.45);
+    if (cp > 0) {
+      const s = lerp(0.6, 1, E.outBack(cp)), lbl = 'COMPOUNDING', tw = K.measure(c, lbl, 800, 30, 6);
+      const pw = tw + 110, ph = 70, px = x + w - 60 - pw / 2, py = y + 80;
+      c.save(); c.globalAlpha = clamp(cp * 2, 0, 1); c.translate(px, py); c.scale(s, s);
+      rr(c, -pw / 2, -ph / 2, pw, ph, ph / 2); c.fillStyle = 'rgba(74,222,128,0.14)'; c.fill();
+      K.icon(c, 'trend', -pw / 2 + 46, 0, 32, COL.green, { lw: 2.4 });
+      K.text(c, lbl, -pw / 2 + 78, 1, { w: 800, s: 30, col: COL.green, track: 6 });
+      c.restore();
+    }
+    K.flash(c, W, H, prog(t, CP.KICK, 0.4), '#bff5d0', 0.22);
+
+    c.restore();
+    K.vignette(c, W, H, 0.5);
+    K.grain(c, W, H, t);
+  },
+};
+
+// ============ SCENE:END ====================================================
+
+/* ===== PLAYER / RECORDER (engine — do not edit) ===== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let DUR=SCENE.meta.duration, FPS=SCENE.meta.fps;
+let st={t:0,playing:false,recording:false,raf:0,wall:0};
+let rec=null, chunks=[];
+
+function fitCanvas(){ cv.width=SCENE.meta.w; cv.height=SCENE.meta.h; }
+function renderFrame(t){
+  t=clamp(t,0,DUR);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  try{ SCENE.draw(ctx,t); }catch(e){ console.error('SCENE.draw error',e); }
+}
+function fmt(x){return x.toFixed(2);}
+function updateUI(){
+  document.getElementById('time').textContent=`${fmt(st.t)} / ${fmt(DUR)}s`;
+  document.getElementById('scrub').value=String(Math.round(st.t/DUR*1000));
+  const beats=document.querySelectorAll('.beat');
+  SCENE.timeline.forEach((b,i)=>{
+    const next=SCENE.timeline[i+1];
+    const on = st.t>=b.t && (!next || st.t<next.t);
+    if(beats[i]) beats[i].classList.toggle('on',on);
+  });
+}
+function loop(){
+  const now=performance.now();
+  st.t=(now-st.wall)/1000;
+  if(st.t>=DUR){
+    st.t=DUR; renderFrame(st.t); updateUI();
+    st.playing=false;
+    if(st.recording) stopRecording();
+    document.getElementById('playBtn').innerHTML='&#9654; Play';
+    return;
+  }
+  renderFrame(st.t); updateUI();
+  st.raf=requestAnimationFrame(loop);
+}
+function play(){
+  if(st.playing)return;
+  if(st.t>=DUR-0.001) st.t=0;
+  st.playing=true; st.wall=performance.now()-st.t*1000;
+  document.getElementById('playBtn').innerHTML='&#10073;&#10073; Pause';
+  st.raf=requestAnimationFrame(loop);
+}
+function pause(){
+  st.playing=false; cancelAnimationFrame(st.raf);
+  document.getElementById('playBtn').innerHTML='&#9654; Play';
+}
+function togglePlay(){ st.playing?pause():play(); }
+function restart(){ pause(); st.t=0; renderFrame(0); updateUI(); }
+function onScrub(v){
+  pause(); st.t=(v/1000)*DUR; renderFrame(st.t); updateUI();
+}
+
+function pickMime(){
+  const c=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  for(const m of c){ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m; }
+  return '';
+}
+function toggleRecord(){ st.recording?stopRecording():startRecording(); }
+function startRecording(){
+  if(!window.MediaRecorder){ setStatus('MediaRecorder not supported in this browser',''); return; }
+  const mime=pickMime();
+  const stream=cv.captureStream(FPS);
+  try{ rec=new MediaRecorder(stream, mime?{mimeType:mime,videoBitsPerSecond:12000000}:undefined); }
+  catch(e){ setStatus('Could not start recorder: '+e.message,''); return; }
+  chunks=[];
+  rec.ondataavailable=e=>{ if(e.data&&e.data.size>0)chunks.push(e.data); };
+  rec.onstop=()=>{
+    const blob=new Blob(chunks,{type:mime||'video/webm'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=slug(SCENE.meta.title)+'.webm';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    setStatus('Saved '+a.download+' ('+(blob.size/1048576).toFixed(1)+' MB)','done');
+  };
+  st.recording=true;
+  const b=document.getElementById('recBtn'); b.classList.add('armed'); b.innerHTML='&#9632; Stop';
+  setStatus('Recording…','live');
+  restart(); rec.start(); play();
+  // status ticker
+  const tick=()=>{ if(st.recording){ setStatus('Recording… '+fmt(st.t)+'s','live'); requestAnimationFrame(tick); } };
+  requestAnimationFrame(tick);
+}
+function stopRecording(){
+  if(!st.recording)return;
+  st.recording=false;
+  const b=document.getElementById('recBtn'); b.classList.remove('armed'); b.innerHTML='&#9679; Record &amp; download';
+  try{ if(rec&&rec.state!=='inactive') rec.stop(); }catch(e){}
+}
+function setStatus(msg,cls){ const s=document.getElementById('status'); s.textContent=msg; s.className='status'+(cls?(' '+cls):''); }
+function slug(s){ return (s||'mindkraft-scene').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'mindkraft-scene'; }
+
+function buildTimeline(){
+  const el=document.getElementById('beats'); el.innerHTML='';
+  SCENE.timeline.forEach(b=>{
+    const d=document.createElement('div'); d.className='beat';
+    d.innerHTML=`<span class="tt">${b.t.toFixed(1)}s</span><span class="lbl">${b.label}</span>`;
+    el.appendChild(d);
+  });
+}
+function boot(){
+  fitCanvas();
+  DUR=SCENE.meta.duration; FPS=SCENE.meta.fps;
+  document.getElementById('mRes').textContent=SCENE.meta.w+'×'+SCENE.meta.h;
+  document.getElementById('mFps').textContent=FPS;
+  document.getElementById('mDur').textContent=DUR.toFixed(1);
+  buildTimeline();
+  const first=()=>{ renderFrame(0); updateUI(); };
+  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(first); setTimeout(first,400);} else first();
+}
+boot();
+</script>
+</body>
+</html>
+
