@@ -36,4 +36,3 @@ Plus overlays: [[Landing And Sign In Page]], [[In-App Browser Page]], [[Onboardi
 - [[Home]] — every note.
 - [[How To Use This Vault]], [[Glossary]], [[Function Index]], [[Vault Log]].
 
-Lovely!
