@@ -3,5 +3,7 @@
   "newLinkFormat": "shortest",
   "useMarkdownLinks": false,
   "showUnsupportedFiles": false,
-  "userIgnoreFilters": [".tools/"]
+  "userIgnoreFilters": [
+    ".tools/"
+  ]
 }
