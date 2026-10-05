@@ -7,14 +7,62 @@
   "showOrphans": true,
   "collapse-color-groups": false,
   "colorGroups": [
-    { "query": "path:\"00 Start Here\"", "color": { "a": 1, "rgb": 16106851 } },
-    { "query": "path:Pages", "color": { "a": 1, "rgb": 5939156 } },
-    { "query": "path:Features", "color": { "a": 1, "rgb": 9083483 } },
-    { "query": "path:Engine", "color": { "a": 1, "rgb": 8023024 } },
-    { "query": "path:Data", "color": { "a": 1, "rgb": 13208127 } },
-    { "query": "path:Backend", "color": { "a": 1, "rgb": 11027566 } },
-    { "query": "path:Code", "color": { "a": 1, "rgb": 3064502 } },
-    { "query": "path:Tests", "color": { "a": 1, "rgb": 10133670 } }
+    {
+      "query": "path:\"00 Start Here\"",
+      "color": {
+        "a": 1,
+        "rgb": 16106851
+      }
+    },
+    {
+      "query": "path:Pages",
+      "color": {
+        "a": 1,
+        "rgb": 5939156
+      }
+    },
+    {
+      "query": "path:Features",
+      "color": {
+        "a": 1,
+        "rgb": 9083483
+      }
+    },
+    {
+      "query": "path:Engine",
+      "color": {
+        "a": 1,
+        "rgb": 8023024
+      }
+    },
+    {
+      "query": "path:Data",
+      "color": {
+        "a": 1,
+        "rgb": 13208127
+      }
+    },
+    {
+      "query": "path:Backend",
+      "color": {
+        "a": 1,
+        "rgb": 11027566
+      }
+    },
+    {
+      "query": "path:Code",
+      "color": {
+        "a": 1,
+        "rgb": 3064502
+      }
+    },
+    {
+      "query": "path:Tests",
+      "color": {
+        "a": 1,
+        "rgb": 10133670
+      }
+    }
   ],
   "collapse-display": true,
   "showArrow": false,
@@ -26,6 +74,6 @@
   "repelStrength": 10,
   "linkStrength": 1,
   "linkDistance": 250,
-  "scale": 1,
+  "scale": 0.7132754626224428,
   "close": false
 }
