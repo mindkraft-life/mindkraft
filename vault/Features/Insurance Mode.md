@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Insurance Mode
 
+> [!summary] In plain words
+> Protects the streaks of up to three activities for one to three months. While it is on, missing a day does not lower those streaks, and any shields that get used up are given back.
+>
+> **How it connects:** One of the [[Modes]]. It works alongside the daily streak check ([[Streaks And Shields]], [[Login-Time Processing]]).
+
 **In one line:** Insurance Mode protects up to three activities' streaks for a fixed term of one to three 30-day cycles (20, 35 or 50 Grit): while insured, a missed day never lowers the displayed streak and any shields the walk spent are handed back.
 
 ## How it works

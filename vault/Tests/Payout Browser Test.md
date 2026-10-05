@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Payout Browser Test
 
+> [!summary] In plain words
+> Checks the rules for the weekly Grit bonus, shield limits, quest progress when past days are fixed, extra points from modes appearing in the history, and that every week starts on Monday.
+>
+> **How it connects:** Guards the [[Grit Weekly Payout]], [[Grit Shop]], [[Retroactive History Editing]] and [[Dates Days And Weeks]].
+
 **In one line:** test/payout/payout.test.mjs (119 checks) pins the nine sections of the Grit payout redesign: the absolute weekly bonus curve and its once-per-day-per-activity cap, quest progress on retroactive edits, the shield cap counting shields held, confirm-before-apply for shields, mode XP in weekly figures, mode/quest XP in Activity History, and Monday-anchored weeks and fortnights.
 
 ## How it works

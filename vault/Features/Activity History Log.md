@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity History Log
 
+> [!summary] In plain words
+> A complete list of every time your points went up or down — ticks, automatic penalties, history from activities you deleted, bonuses from modes and finished quests — grouped by day, with filters for gains, losses and penalties.
+>
+> **How it connects:** It lives on the [[Analytics Page]]. Its add and remove buttons are [[Retroactive History Editing]]. Entries come from [[Activity Completion]], [[Negative Activities And Skip Penalty]], [[Modes]] and [[Quests]].
+
 **In one line:** Analytics' "Activity History" is a paged, date-grouped list of every XP change — completions, auto-penalties, deleted activities' history, mode XP and quest seal bonuses — with filters for gains, losses and auto-deductions, and the add/remove buttons for retroactive edits.
 
 ## How it works

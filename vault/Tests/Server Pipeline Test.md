@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Pipeline Test
 
+> [!summary] In plain words
+> Replays a real example — planning a video-production quest — to make sure the AI planner uses all the right activities.
+>
+> **How it connects:** Guards the [[Quest Composer]].
+
 **In one line:** functions/test/pipeline.test.js (3 tests) replays the real case that once failed — a video-production quest built from activities the user already has — checking that every pipeline stage reaches the model, a full production pipeline survives validation intact, and a nine-leaf quest may introduce three new practices.
 
 ## How it works

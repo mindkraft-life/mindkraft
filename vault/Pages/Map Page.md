@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Map Page
 
+> [!summary] In plain words
+> Shows your personal Map — a web drawn by AI that starts from the habits you already have and suggests new practices leading towards goals you type in. Most of it starts hidden: you uncover parts with Grit, and you unlock them by becoming really consistent at what comes before.
+>
+> **How it connects:** How the Map works is in [[Tech Tree Map]], how the AI builds it in [[Map Weaving]], and uncovering hidden parts in [[Map Reveal Loop]].
+
 **In one line:** Activities › Map shows the user's AI-woven web of goals and suggested practices — an intro/goal screen before the first weave, then a Sky view (silhouettes and threads) or a Branch view (readable chain per goal) — with a "+ Goal" button on the title row.
 
 ## How it works

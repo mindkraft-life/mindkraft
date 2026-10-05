@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # reminders
 
+> [!summary] In plain words
+> The list of scheduled notifications for each person — the daily reminder, activity reminders and mode nudges — each with the exact moment it should next go off.
+>
+> **How it connects:** Created from the [[Settings Page]] and by [[Habit Mode]], sent by the server ([[Reminder Scheduling]], [[Push Delivery]]). See [[Reminders]].
+
 **In one line:** `users/{uid}/reminders/{reminderId}` holds every scheduled push for a user — the singleton daily reminder (`general`), up to five activity reminders, and mode reminders (`mode-…`) — each with a precomputed `nextSendAt` that the per-minute sender queries.
 
 ## How it works

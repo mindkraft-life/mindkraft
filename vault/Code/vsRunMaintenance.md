@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # vsRunMaintenance
 
+> [!summary] In plain words
+> The tidy-up for challenges that runs when you open the app: it expires old invitations, closes finished challenges, collects any Grit you are owed, and shows the results.
+>
+> **How it connects:** Explained in [[Versus Challenges]].
+
 **In one line:** `vsRunMaintenance()` is the Versus catch-up pass run on login, on app foreground (cache older than 60 s), on the Challenges tab and after key actions: it expires lapsed invites, resolves challenges past their deadline, claims any payout owed to this user, announces results once, prunes old cards and updates badges.
 
 ## How it works

@@ -4,6 +4,11 @@ last_verified: 2026-10-05
 ---
 # Change Impact Guide
 
+> [!summary] In plain words
+> This page answers the question "if we change this, what else could be affected?" It lists the parts of the app that many other parts depend on, a checklist to go through before releasing a change, and a numbered list of problems and leftovers that were spotted while this vault was being written — each explained, none of them fixed yet.
+>
+> **How it connects:** Each item points to the page that explains it in detail. Read it together with [[App At A Glance]] before planning any change.
+
 **In one line:** Where a change to Mindkraft ripples furthest, what to check before shipping, and the bugs, gaps and leftovers found while mapping the code on 2026-10-05 (recorded here, not fixed).
 
 ## Biggest ripple points

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Web Weaver Test
 
+> [!summary] In plain words
+> Checks the Map builder's limits (when building or redoing is free, monthly, or paid) and that a slightly wrong AI answer becomes a smaller but valid Map rather than a broken one.
+>
+> **How it connects:** Guards [[Map Weaving]] and the [[Tech Tree Map]].
+
 **In one line:** functions/test/web-weaver.test.js (34 tests) protects the Map weaver's server-side gates (what weaves are allowed and when reweaves are free) and its materializer (almost-right model JSON must shrink to a smaller valid web, never a broken one).
 
 ## How it works

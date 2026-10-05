@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Grit Weekly Payout
 
+> [!summary] In plain words
+> Every week, Monday to Sunday, the app works out how many ticks it expects from you based on the activities you are actively doing, counts what you actually did, and after the week ends pays a Grit bonus for how close you came plus a bonus for how much you did in total. Doing less than a fifth of what was expected pays nothing.
+>
+> **How it connects:** Paid the first time you open the app after Monday ([[Login-Time Processing]]). Progress is shown on the [[Rewards Page]]. The same weekly list also refills the "Active" routine ([[Routines]]).
+
 **In one line:** Each Monday-to-Sunday week Mindkraft freezes a quota of expected completions from the user's live activities, counts completions against it, and on the next login after the week closes pays two summed curves — one on the completion ratio (30–100 Grit for 20%–130%, nothing below 20%) and one on absolute completions (up to 80 Grit at 85).
 
 ## How it works

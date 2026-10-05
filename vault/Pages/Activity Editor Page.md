@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity Editor Page
 
+> [!summary] In plain words
+> The form for creating or changing an activity: its name, how many points it is worth, how often it should be done, which life area it belongs to, and advanced options (allow it several times a day, delete it once done, or make it a habit that costs points).
+>
+> **How it connects:** What an activity is: [[Activities]]. How the "how often" options work: [[Activity Frequencies And Cycles]]. Habits that cost points: [[Negative Activities And Skip Penalty]]. The Map and Challenges also use this form to add activities they suggest ([[Tech Tree Map]], [[Versus Challenges]]).
+
 **In one line:** The activity modal is where an activity is created or edited — name, base XP (1–50), frequency (with custom days/cycles), dimension and path, description, and an advanced section for multiple-per-day, delete-on-complete and negative-XP mode — and it doubles as the hand-off form for the Map accept flow and the Versus accept walkthrough.
 
 ## How it works

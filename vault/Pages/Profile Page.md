@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Profile Page
 
+> [!summary] In plain words
+> Opens when you tap your picture at the top of the screen. It shows your name (which you can edit), a title you earn from what you focus on, your friend code to share, your level and statistics, rewards you have promised yourself for reaching certain levels, and a "life balance" chart.
+>
+> **How it connects:** The title and chart are explained in [[Character Title And Life Balance]], self-set rewards in [[Level Rewards]], and what friends can see in [[Public Profile]].
+
 **In one line:** Tapping the header avatar opens the full-screen Profile: identity (avatar, character title, editable username, member-since, friend code with copy/share), level and stats, user-defined level rewards, and the life-balance spider chart with its category tagging.
 
 ## How it works

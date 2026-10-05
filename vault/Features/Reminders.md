@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Reminders
 
+> [!summary] In plain words
+> Phone notifications: one daily reminder at a time you choose, plus up to five reminders for specific activities. Tapping one opens the app at that activity. They are sent by a server even when the app is closed.
+>
+> **How it connects:** Set on the [[Settings Page]], timed by [[Reminder Scheduling]], delivered by [[Push Delivery]] and shown by the [[Service Worker]]. [[Habit Mode]] adds nudges of its own.
+
 **In one line:** Users can set one daily reminder and up to five per-activity reminders (local time, in their own timezone) in Settings; they are stored as documents in `users/{uid}/reminders`, scheduled and sent as Web Push by Cloud Functions, and tapping one opens the app on that activity.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Nav Browser Test
 
+> [!summary] In plain words
+> Checks the bottom menu on a phone-sized screen: no invisible dead zones that swallow taps, readable in both light and dark themes, buttons big enough to tap, and calm when the phone asks for less motion.
+>
+> **How it connects:** Guards the [[Bottom Navigation]] and [[Themes]].
+
 **In one line:** test/nav/nav.test.mjs (11 checks) loads index.html + app.js at phone size and asserts what screenshots cannot show about the bottom navigation: no dead tap zone above any of the five nav styles, theme-correct surfaces in light and dark, 24px touch targets (three documented exceptions), reduced-motion compliance, and that the retired flat nav bar stays inert.
 
 ## How it works

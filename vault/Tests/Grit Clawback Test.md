@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Grit Clawback Test
 
+> [!summary] In plain words
+> Proves you cannot create free Grit by ticking and un-ticking, or by adding and removing past entries — un-ticking always takes back exactly the Grit that was given.
+>
+> **How it connects:** Guards [[Grit Currency]] and [[Activity Completion]].
+
 **In one line:** test/grit/clawback.test.mjs (31 checks) proves that "effort is the only source of Grit": undoing a completion or deleting a retroactive one takes back exactly the drip it paid, so complete/undo loops mint nothing.
 
 ## How it works

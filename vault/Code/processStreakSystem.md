@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # processStreakSystem
 
+> [!summary] In plain words
+> The rule-keeper for streaks. Once a day it walks through each activity's past periods, counts the ones you completed, spends shields on the ones you missed, and ends the streak if the shields run out.
+>
+> **How it connects:** Explained in [[Streaks And Shields]] and [[Login-Time Processing]].
+
 **In one line:** `processStreakSystem(activity, today)` is the single authoritative writer of an activity's streak and shields: once per day it walks every closed window from the streak's start, counting hits, spending shields on misses and breaking on an unshielded miss, and writes `streak`, `shieldsConsumed`, `bestStreak`, `streakStartWindow` and `shieldCapUsed`.
 
 ## How it works

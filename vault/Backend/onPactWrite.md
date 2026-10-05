@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # onPactWrite
 
+> [!summary] In plain words
+> Sends Pact notifications: a new invitation, accepted, declined, and the final result to both partners — plus a few encouraging nudges when your partner is halfway or pulling ahead, limited so it never turns into spam.
+>
+> **How it connects:** Part of [[Pact Mode]]; it uses [[Push Delivery]].
+
 **In one line:** `onPactWrite` is a Firestore trigger on `pacts/{pactId}` that turns Pact status changes into pushes (invite, accepted, declined, resolved for both) and sends at most a few progress nudges (halfway, falling behind) during an active pact.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Hook Chains
 
+> [!summary] In plain words
+> When you tick an activity off, the main bookkeeping happens first, and then several other features get a turn to react, one after another: the planner updates its ticks, the Map checks for mastery, challenges count progress, and modes update their scores. This page explains that chain and its order.
+>
+> **How it connects:** It starts from [[Activity Completion]] and reaches the [[Daily Planner]], [[Tech Tree Map]], [[Versus Challenges]] and [[Modes]].
+
 **In one line:** Later sections of app.js extend core actions like `completeActivity`, `undoActivity`, `switchTab` and `closeActivityModal` by re-assigning the `window.*` function to a wrapper that calls the previous one, so one tap runs a chain of feature hooks whose order is set by file order (plus a few wrappers applied in `setTimeout(…, 0)`).
 
 ## How it works

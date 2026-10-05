@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # users
 
+> [!summary] In plain words
+> The main record for each person — almost their entire account in one place: activities and their history, points and levels, streaks, quests, routines, planner, Map, Grit balance, modes and settings. The app reads it when you open it and saves it again whenever something changes.
+>
+> **How it connects:** Explained in [[Saving And The Write Invariant]] and [[Loading And Migration]]. Nearly every feature page stores its information here.
+
 **In one line:** `users/{uid}` is the single Firestore document that holds almost the entire Mindkraft account — activities, XP, streaks, quests, routines, planner, Map, Grit balance, modes and settings — written as a whole by the client's `saveUserData()` and read (never written, except two narrow paths) by Cloud Functions.
 
 ## How it works

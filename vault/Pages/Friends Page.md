@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Friends Page
 
+> [!summary] In plain words
+> Your social list: people who added you (with a button to add them back), your friends (tap one to see their profile), the last few gifts you sent, and a box for adding someone with their friend code.
+>
+> **How it connects:** Adding friends is explained in [[Friends]]. Tapping a friend opens the [[Friend Profile Page]]. Gifts are covered in [[Social Gifting]], and rankings live on the [[Leaderboards Page]].
+
 **In one line:** Social › Friends shows incoming "someone added you" requests, the friends list (tap for a profile card with gift and leaderboard actions), the last five gifts sent, and the add-friend-by-code box.
 
 ## How it works

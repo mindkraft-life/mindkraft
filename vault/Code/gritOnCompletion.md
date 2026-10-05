@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # gritOnCompletion
 
+> [!summary] In plain words
+> The Grit side of ticking something off: it pays one Grit, counts the tick towards this week's bonus, checks for streak and rhythm bonuses, and uses up a waiting boost if there is one.
+>
+> **How it connects:** Explained in [[Grit Currency]] and [[Grit Weekly Payout]].
+
 **In one line:** `gritOnCompletion(activity, entry)` is the Grit hook inside every live completion: it pays the 1-Grit drip (stamping `entry.gritAwarded`), counts the completion toward the week's quota, checks the cadence bonus and streak milestones, and consumes an armed double-XP boost.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Social Browser Test
 
+> [!summary] In plain words
+> Checks gifting and leaderboard prizes: gifts cost half price and are delivered exactly once, boosts stay secret until used, failures give the Grit back, and weekly prizes follow the anti-cheating rules.
+>
+> **How it connects:** Guards [[Social Gifting]] and [[Leaderboard Payouts]].
+
 **In one line:** test/social/social.test.mjs (73 checks) asserts the gifting and leaderboard-payout invariants in the real app.js — half-price gifts and their separate cap, spend → persist → write ordering with refunds, stable gift ids, denormalized names, shields redeemed once, the silent boost queue, reveal and thanks, mirror sync, the payout table and anti-farming rules, opt-in timing, and the Friends/Leaderboards tab split.
 
 ## How it works

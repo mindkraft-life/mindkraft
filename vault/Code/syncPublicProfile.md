@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # syncPublicProfile
 
+> [!summary] In plain words
+> Refreshes the public summary that friends can see, every time your data is saved.
+>
+> **How it connects:** Explained in [[Public Profile]].
+
 **In one line:** `syncPublicProfile()` recomputes the user's shareable stats and overwrites `publicProfiles/{uid}` with them; it runs after every successful `saveUserData()` and once on each login.
 
 ## How it works

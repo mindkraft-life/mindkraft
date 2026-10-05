@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Level Rewards
 
+> [!summary] In plain words
+> Real-life treats you promise yourself, such as "new running shoes when I reach level 10". You write them on your profile — for your overall level or for a life-area level — and when you reach that level a celebration pops up showing the reward.
+>
+> **How it connects:** Set up on the [[Profile Page]] and triggered by [[XP And Levels]] and [[Dimension Levels]]. This is different from the Grit shop on the [[Rewards Page]].
+
 **In one line:** Users define their own real-world rewards for reaching a user level (2–100) or a dimension level, and Mindkraft shows a celebration overlay with the reward when that level is reached; Level 100 has a built-in "Legendary" message.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # onFriendRequestWrite
 
+> [!summary] In plain words
+> Sends a notification when someone adds you as a friend, and tells them when you add them back.
+>
+> **How it connects:** Part of [[Friends]]; it uses [[Push Delivery]].
+
 **In one line:** `onFriendRequestWrite` is a Firestore trigger on `friendRequests/{requestId}` that pushes the recipient when someone adds them, and pushes the original sender when the recipient adds them back (detected by the `status: 'accepted'` marker written before the delete).
 
 ## How it works

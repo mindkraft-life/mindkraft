@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Quests Page
 
+> [!summary] In plain words
+> Quests are bigger goals broken into steps — for example "start a podcast" split into stages, each with tasks and habits. This page lists your quests, lets you open one to see what to do next and tick steps off, build a new quest yourself, or ask the AI to plan one for you.
+>
+> **How it connects:** How quests work and what they pay is in [[Quests]], and the AI planner in [[Quest Composer]]. Doing a habit anywhere in the app also moves forward any quest that uses it ([[Activity Completion]]).
+
 **In one line:** Pursuits › Quests lists the user's quests by status with an info button, "Plan it for me" (AI composer) and "New Quest", and drills into a quest detail view with what's next, pipelines, checklists and the seal button.
 
 ## How it works

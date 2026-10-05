@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Security Rules
 
+> [!summary] In plain words
+> The database's gatekeeper rules, deciding who may read or change what — for example, only you can read your own account, only friends can challenge you, and nobody can fake a win. They are managed on the Firebase website rather than stored in this project.
+>
+> **How it connects:** They protect everything in the Data group of [[Home]] and are tested by the [[Rules Test]].
+
 **In one line:** Firestore security rules for Mindkraft are managed in the Firebase Console and are not in this repository; what the repo has is a hostile-client test suite (test/rules) that describes the intended rules and expects a `firestore.rules` file at the repo root that does not exist.
 
 ## How it works

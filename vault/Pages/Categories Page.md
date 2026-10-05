@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Categories Page
 
+> [!summary] In plain words
+> Shows how your activities are organised: big life areas (called dimensions, such as Health or Career), each split into smaller paths, each holding activities. Here you add, rename, recolour or delete those areas and quickly find any activity.
+>
+> **How it connects:** The structure is explained in [[Dimensions And Paths]]. Each area also earns its own level ([[Dimension Levels]]). Searching is covered in [[Activity Search]].
+
 **In one line:** Activities › Categories ("Your Dimensions") lists the user's dimensions, their paths and the activities inside, with search, an explainer, a per-row action menu and Add Dimension.
 
 ## How it works

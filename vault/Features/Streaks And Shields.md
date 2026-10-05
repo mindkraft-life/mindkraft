@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Streaks And Shields
 
+> [!summary] In plain words
+> A streak counts how many periods in a row you have done an activity, and long streaks give bonus points. Shields protect a streak: if you miss a period, a shield is used up instead of losing the streak. You start each streak with three, earn more at milestones, and can add more bought with Grit (holding at most ten at a time). Every time you open the app, missed periods are checked and shields are used automatically.
+>
+> **How it connects:** The automatic check happens in [[Login-Time Processing]]. Extra shields come from the [[Grit Shop]] or as gifts ([[Social Gifting]]). [[Recovery Mode]] and [[Insurance Mode]] help rebuild or protect streaks.
+
 **In one line:** Each non-occasional activity keeps a streak of consecutive completed windows, protected by shields (3 per streak, +1 at 25/50/75/100, plus any bought with Grit, holding at most 10 at once) that absorb missed windows; the login walk is the single authority that re-derives streak and shields from completion history.
 
 ## How it works

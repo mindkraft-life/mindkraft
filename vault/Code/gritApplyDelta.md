@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # gritApplyDelta
 
+> [!summary] In plain words
+> The one place where your Grit balance actually goes up or down. Every change is also written into your Grit statement, and the balance can never drop below zero.
+>
+> **How it connects:** Explained in [[Grit Currency]].
+
 **In one line:** `gritApplyDelta(delta, reason, meta)` is the one function that moves a user's local Grit balance — it updates `grit.balance` and the lifetime earned/spent totals, writes a ledger entry, refreshes the Grit UI, and clamps at zero with a `correction` entry if arithmetic ever goes negative.
 
 ## How it works

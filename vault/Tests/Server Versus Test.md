@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Versus Test
 
+> [!summary] In plain words
+> Checks who wins a challenge when time runs out, and that the Grit pot is always fully paid out — never created out of nothing and never lost.
+>
+> **How it connects:** Guards [[Versus Challenges]].
+
 **In one line:** functions/test/versus.test.js (15 tests) pins who wins a Versus challenge when the scheduler resolves it — completing first, the capped deadline lead, or a tie refund — that inflated counters cannot buy a win, that lapsed invites refund in full, and that every resolution empties the pot into payouts that sum back to it.
 
 ## How it works

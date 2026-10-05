@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Bottom Navigation
 
+> [!summary] In plain words
+> The menu at the bottom of the phone screen. It organises the app into four tabs — Social, Pursuits, Activities and More — each with three sections, and comes in five visual styles to choose from. You can also swipe to move between sections.
+>
+> **How it connects:** It opens every screen listed on [[App At A Glance]]. The style is chosen on the [[Settings Page]], and the screen changing itself is [[Tab Switching]].
+
 **In one line:** Navigation v5 is a self-contained script in index.html that organises the app into 4 tabs × 3 sections (Social, Pursuits, Activities, More) and draws them as one of five switchable phone bottom-bar styles (Plate, Arc, Plume, Ledger, Spine), driving app.js only through `window.switchTab` / `window.switchSubTab`.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # evaluateTechTreeMastery
 
+> [!summary] In plain words
+> Checks the Map: it marks activities you have mastered, opens new parts, pays the rewards, and asks the AI to grow the web when something new is mastered.
+>
+> **How it connects:** Explained in [[Tech Tree Map]]; it runs when you open the app and after every tick.
+
 **In one line:** `evaluateTechTreeMastery()` is the Map's evaluation pass — it marks activities mastered, pays Grit mastery bonuses, archives orphaned nodes, resolves active nodes (paying XP by depth), recomputes locked/available, and triggers background expansion — run on login, after every completion, on render and after quest seals.
 
 ## How it works

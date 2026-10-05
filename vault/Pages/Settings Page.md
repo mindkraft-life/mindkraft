@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Settings Page
 
+> [!summary] In plain words
+> The control panel: how to install the app, a how-to guide, sliders for how quickly levels and streak bonuses grow, daily and per-habit reminders, the colour theme and menu style, saving, backing up and restoring your data, logging out, and links to the legal pages.
+>
+> **How it connects:** Reminders are covered in [[Reminders]], the theme in [[Themes]], the menu style in [[Bottom Navigation]], backups in [[Backup Export Import]], and the two sliders in [[XP And Levels]] and [[Streaks And Shields]].
+
 **In one line:** More › Settings holds install instructions, the in-app guide, Level Scaling and Streak Bonus Scaling sliders, the daily and per-activity reminders, theme and navigation style, data tools (export, import, backup, restore, reset), the signed-in account with logout, and links to the privacy policy and terms.
 
 ## How it works

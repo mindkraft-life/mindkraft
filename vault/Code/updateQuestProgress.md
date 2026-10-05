@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # updateQuestProgress
 
+> [!summary] In plain words
+> Moves forward every quest step that uses the activity you just did.
+>
+> **How it connects:** Explained in [[Quests]]; it is called from [[Activity Completion]].
+
 **In one line:** `updateQuestProgress(activityId)` advances every active quest's leaves that link to that activity by one (up to their required count) and banks finished repetitions, so a completion anywhere in the app moves every quest that uses it.
 
 ## How it works

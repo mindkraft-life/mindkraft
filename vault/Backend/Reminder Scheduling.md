@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Reminder Scheduling
 
+> [!summary] In plain words
+> The careful time maths behind reminders: turning "8:00 where I live" into the exact moment to send, correctly across daylight-saving changes and when someone moves time zone.
+>
+> **How it connects:** Used by the reminder services behind [[Reminders]], following the ideas in [[Dates Days And Weeks]], and checked by the [[Server Schedule Test]].
+
 **In one line:** functions/lib/schedule.js is the pure, Luxon-based maths that turns a reminder's local "HH:mm" and IANA timezone into the next UTC fire time, validates times and zones, and produces the local-date key used to send each reminder at most once a day.
 
 ## How it works

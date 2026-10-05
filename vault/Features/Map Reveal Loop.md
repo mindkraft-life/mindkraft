@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Map Reveal Loop
 
+> [!summary] In plain words
+> Most of the Map starts dark — you can see its shape but not what each part is. Spending Grit uncovers one part at a time, working outwards from what you already know. Uncovering only tells you what a part is; to actually take it on you still have to master what comes before it. Once a month you can pay to rebuild the whole web.
+>
+> **How it connects:** Part of the [[Tech Tree Map]], paid with [[Grit Currency]], and checked by the [[Tech Tree Reveal Test]].
+
 **In one line:** In Tech Tree v5 most Map nodes start as dark silhouettes; spending 40 Grit reveals a node's title and details once everything before it is revealed, adopting still requires mastering its prerequisite, and the whole web can be regenerated for 300 Grit at most once a month after at least one new mastery.
 
 ## How it works

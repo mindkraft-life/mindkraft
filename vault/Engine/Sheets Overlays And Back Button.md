@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Sheets Overlays And Back Button
 
+> [!summary] In plain words
+> On phones, pop-up forms slide up from the bottom and can be dragged taller. The phone's back button closes whatever is open first, then returns you to the home screen, and only leaves the app if you press it a second time.
+>
+> **How it connects:** Applies to forms like the [[Activity Editor Page]] and screens like the [[Map Page]]; part of the [[Bottom Navigation]] experience.
+
 **In one line:** Every `.modal-overlay` dialog becomes a bottom sheet on phones (index.html `mkBindSheet`), runtime sheets (Map, Versus, Gifts, Modes) are built by feature helpers, and an app-wide back-button guard in app.js closes the top overlay, then returns to Activities, then asks for a second press before letting the PWA exit.
 
 ## How it works

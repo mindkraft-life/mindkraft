@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Dimension Levels
 
+> [!summary] In plain words
+> Besides your overall level, each life area has its own level that rises with the points its activities earn, so you can see which parts of your life you are investing in. Reaching a new level in an area can unlock a reward you set for it.
+>
+> **How it connects:** Fed by [[Activity Completion]], shown on the [[Analytics Page]], and rewards come from [[Level Rewards]]. A known inconsistency in how these levels are recalculated is listed in the [[Change Impact Guide]].
+
 **In one line:** Every dimension has its own level track that rises with the XP its activities earn — each dimension level needs half what a user level needs — with optional per-level dimension rewards and a "Dimension Progress" panel in Analytics.
 
 ## How it works

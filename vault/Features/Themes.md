@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Themes
 
+> [!summary] In plain words
+> The app's look: Dark (the default) or Light. A full custom-colour editor exists but is locked for now, except for people who already had a custom theme.
+>
+> **How it connects:** Chosen on the [[Settings Page]]. [[Berserk Mode]] turns the app red while it runs. The menu style is a separate choice ([[Bottom Navigation]]).
+
 **In one line:** Mindkraft ships two theme presets — Dark (default) and Light — chosen in Settings and saved to `settings.theme`; a full custom-colour and gradient editor exists in the code but is locked ("coming soon") except for accounts that already had a custom theme.
 
 ## How it works

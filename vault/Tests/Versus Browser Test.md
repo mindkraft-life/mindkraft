@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Versus Browser Test
 
+> [!summary] In plain words
+> Walks through a whole challenge from both sides — creating it, the stake being taken, the scoreboard, and the friend accepting — and checks that old, removed challenge screens are really gone.
+>
+> **How it connects:** Guards [[Versus Challenges]] and the [[Challenges Page]].
+
 **In one line:** test/versus/versus.test.mjs (72 checks) walks a whole Versus wager in the real app.js from both sides — the create sheet and the document it writes with the escrowed stake, the board's counts and bars, the receiver's accept walkthrough including creating an activity from the seed — and checks that the old solo/group challenge UI is fully gone.
 
 ## How it works

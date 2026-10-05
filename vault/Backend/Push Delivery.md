@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Push Delivery
 
+> [!summary] In plain words
+> How phone notifications are actually sent. Each phone that allows notifications gives the app a private delivery address, and the server sends messages to that address, signed with a secret key so phones know they are genuine. Addresses that stop working are cleared.
+>
+> **How it connects:** Used by [[Reminders]], [[Social Gifting]], [[Friends]], [[Pact Mode]] and [[Versus Challenges]], and received on the phone by the [[Service Worker]].
+
 **In one line:** Mindkraft sends notifications as raw Web Push signed with VAPID (not Firebase Cloud Messaging) to the single `pushSubscription` stored on `users/{uid}`, through `sendPush` in functions/lib/push.js, with every cross-account notification going through `pushToUser()`.
 
 ## How it works

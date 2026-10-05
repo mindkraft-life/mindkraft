@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Social Gifting
 
+> [!summary] In plain words
+> Send a friend a streak shield or a double-points boost for half the normal price. A shield arrives with a notification; a boost stays secret, doubles their next tick, and then reveals who sent it — and they can say thanks.
+>
+> **How it connects:** Started from the [[Friends Page]] or the [[Rewards Page]] and paid with [[Grit Currency]]. Boosts take effect during [[Activity Completion]], and notifications arrive through [[Push Delivery]].
+
 **In one line:** Users can spend Grit to gift a friend a streak shield (20 Grit) or a double-XP boost (25 Grit, max 3 gifted per month) at half the self-purchase price; shields land in the friend's pool with a push, while boosts stay secret until they double the friend's next completion and a reveal (with an optional one-tap thanks) appears.
 
 ## How it works

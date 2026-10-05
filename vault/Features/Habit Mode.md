@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Habit Mode
 
+> [!summary] In plain words
+> For building a new habit. You pick up to three activities, a daily time window for each, and your own reason why. The mode counts how many days you succeeded over a run of 7 to 120 days, sends a nudge before and after each window, and if you missed yesterday it reminds you of your own reason, in your own words.
+>
+> **How it connects:** One of the [[Modes]]. Its nudges arrive through [[Reminders]] and [[Push Delivery]].
+
 **In one line:** Habit Mode (30 Grit) has the user pick up to three activities, each with a daily time window, a "why" in their own words and an optional anchor, and counts "N of M days achieved" over a 7–120 day run (default 33), with push nudges before and after each window.
 
 ## How it works

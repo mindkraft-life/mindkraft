@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # PWA Install
 
+> [!summary] In plain words
+> Mindkraft can be installed on a phone's home screen like a normal app, without going through an app store. The app suggests this on the sign-in screen, with a small banner after logging in, and with step-by-step instructions in Settings.
+>
+> **How it connects:** Relies on the [[Service Worker]] and [[Web Hosting]], and is offered on the [[Landing And Sign In Page]] and the [[Settings Page]].
+
 **In one line:** Mindkraft is an installable Progressive Web App (manifest + service worker) and nudges installation in three places — a platform-specific card on the landing screen, a snoozable banner after login, and step-by-step instructions with an Install button in Settings.
 
 ## How it works

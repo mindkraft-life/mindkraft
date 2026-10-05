@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # publicProfiles
 
+> [!summary] In plain words
+> The public summary of each person that friends are allowed to see — name, picture, level, recent points and title. It is refreshed automatically from the private record.
+>
+> **How it connects:** See [[Public Profile]]; read by the [[Friends Page]] and the [[Leaderboards Page]].
+
 **In one line:** `publicProfiles/{uid}` is the small, readable-by-others summary of a Mindkraft account (name, photo, friend code, level, XP figures, character title) that the owner's client rewrites after every save and that friends read for leaderboards, friend cards and add-by-code lookups.
 
 ## How it works

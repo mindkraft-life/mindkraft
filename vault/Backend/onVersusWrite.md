@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # onVersusWrite
 
+> [!summary] In plain words
+> Sends challenge notifications: a new challenge, accepted, declined, and the result to both players.
+>
+> **How it connects:** Part of [[Versus Challenges]]; it uses [[Push Delivery]].
+
 **In one line:** `onVersusWrite` is a Firestore trigger on `versusChallenges/{challengeId}` that pushes the opponent on a new challenge, the challenger on accept or decline, and both players when the challenge resolves (including forfeits and scheduler resolutions).
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Dimensions And Paths
 
+> [!summary] In plain words
+> How activities are organised. Dimensions are big life areas you choose (for example Health or Career), each with its own colour. Inside each dimension are paths (smaller themes), and inside paths are activities. Anything without a home goes into an "Uncategorized" area.
+>
+> **How it connects:** Managed on the [[Categories Page]]. Each dimension earns its own level ([[Dimension Levels]]) and can have its own rewards ([[Level Rewards]]). The colours show up on activity cards, quests and the Map.
+
 **In one line:** Dimensions (life areas like Health or Career, each with a colour) contain Paths (sub-areas), which contain Activities; this three-level tree is the organising structure of `users/{uid}.dimensions` and is edited on the Categories page.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Negative Activities And Skip Penalty
 
+> [!summary] In plain words
+> Two ways of using points as a stick instead of a carrot. A "bad habit" activity takes points away each time you do it. A "skip penalty" activity gives points when you do it but takes points away for each period you miss — checked the next time you open the app, at most seven missed periods at once.
+>
+> **How it connects:** Set up in the [[Activity Editor Page]]. Penalties are applied during [[Login-Time Processing]] and appear in the [[Activity History Log]], where they can be removed ([[Retroactive History Editing]]).
+
 **In one line:** An activity can be "negative" in two ways — perform-negative (doing it costs XP, for habits you want to break) or skip-negative (doing it earns XP, and each missed window auto-deducts its base XP the next time the app opens, up to 7 windows at a time).
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # First-Run Tutorial
 
+> [!summary] In plain words
+> After the welcome tour, a single card invites you to create your first activity, and keeps reappearing until you do.
+>
+> **How it connects:** Follows the [[Onboarding Page]] and leads to the [[Activity Editor Page]].
+
 **In one line:** After onboarding, a one-step tutorial card ("One habit. One tap.") prompts the user to create their first activity, and stays until they do, tracked by `userData.tutorialStep` (0 = in progress, 99 = done).
 
 ## How it works

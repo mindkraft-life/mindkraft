@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Rewards Page
 
+> [!summary] In plain words
+> Everything about Grit, the app's currency: your balance, what you are on track to earn this week, a small shop (streak shields, double-points boosts, gifts for friends), and a statement of every Grit you earned or spent.
+>
+> **How it connects:** Grit is explained in [[Grit Currency]], the shop in [[Grit Shop]], the weekly bonus in [[Grit Weekly Payout]], and gifts in [[Social Gifting]]. Not to be confused with the personal rewards on your profile ([[Level Rewards]]).
+
 **In one line:** More › Rewards is the Grit page: balance and this week's projected bonus, the shop (shield, double-XP boost, gifts), the shield pool and picker, a "how Grit works" explainer and a paged ledger of every Grit movement.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Modes Browser Test
 
+> [!summary] In plain words
+> Checks that all seven modes behave as designed — prices, rewards, how they protect or boost streaks, targets, and pacts with friends.
+>
+> **How it connects:** Guards [[Modes]] and the individual mode pages.
+
 **In one line:** test/modes/modes.test.mjs (153 checks) drives the real app.js to pin the Modes rate card and every mode's hidden mechanics — above all how Recovery and Insurance stay additive around the login streak walk — plus Berserk's baseline and gate, mid-day activation, the resolution card, and Pact's two document shapes.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activities
 
+> [!summary] In plain words
+> An activity is anything you want to keep track of — a habit like "read for 20 minutes", a weekly chore, or a one-off job. Each one has a name, how many points it is worth, how often it should happen, and where it sits among your life areas. This part covers creating, editing, moving and deleting activities, and the limit on how many you can have at your current level.
+>
+> **How it connects:** Ticking one off is explained in [[Activity Completion]], how often in [[Activity Frequencies And Cycles]], where it lives in [[Dimensions And Paths]], and the form in [[Activity Editor Page]]. Almost every other feature — quests, the Map, modes, challenges, reminders — refers back to activities.
+
 **In one line:** An activity is a tracked habit or task inside the dimension → path → activity tree in `users/{uid}`, with a base XP of 1–50, a frequency, optional negative-XP mode, and its own completion history, streak and shields; creating, editing, moving and deleting them happens in the Activity Editor modal.
 
 ## How it works

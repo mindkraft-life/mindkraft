@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # resolveDueVersusChallenges
 
+> [!summary] In plain words
+> A server task that runs every five minutes. It closes challenges whose time has run out and cancels invitations nobody answered within a week, so results arrive on time even if neither player opens the app. It records who won, but each player's own app collects the Grit.
+>
+> **How it connects:** Part of [[Versus Challenges]]; its results trigger notifications through [[Push Delivery]].
+
 **In one line:** `resolveDueVersusChallenges` is a Cloud Scheduler function that every five minutes resolves Versus challenges past their deadline and expires invites past their 7-day window, writing the outcome and payout owed but never moving anyone's Grit.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # toLocalDateStr
 
+> [!summary] In plain words
+> Turns a moment in time into "today's date where you are" — the way the whole app labels days.
+>
+> **How it connects:** Explained in [[Dates Days And Weeks]].
+
 **In one line:** `toLocalDateStr(date)` formats a Date as a local-time `YYYY-MM-DD` string; it (with `localToday()` / `localYesterday()`) is the app-wide definition of "which day", used in about 60 places for streak stamps, penalties, Grit weeks, modes, planner days, leaderboard weeks and history grouping.
 
 ## How it works

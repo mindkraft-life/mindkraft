@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Quests
 
+> [!summary] In plain words
+> A quest is a bigger goal split into steps. Steps can be your real activities (which move forward whenever you do them anywhere in the app) or simple tick-box tasks, grouped into stages that can repeat. When everything is done you "seal" the quest and receive a one-time bonus of points and Grit. Repeating quests start a fresh round after each seal.
+>
+> **How it connects:** Shown on the [[Quests Page]]. Quests can be drafted by AI ([[Quest Composer]]), are moved forward by [[Activity Completion]], and pay into [[XP And Levels]] and [[Grit Currency]].
+
 **In one line:** A quest (stored in `userData.projects`) is a tree of ordered or unordered groups — repeatable N times — whose leaves are either linked activities or plain tasks with target counts; completing the linked activity anywhere advances the quest, and sealing a finished quest or cycle pays a one-time bonus of XP (20% of the linked base XP) plus Grit.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # loadUserData
 
+> [!summary] In plain words
+> The step that fetches your account when you open the app. It falls back to the copy kept on your phone when you are offline, and switches to a safe read-only mode if nothing can be read.
+>
+> **How it connects:** Explained in [[Loading And Migration]]; it is the first step of the [[App Boot Sequence]].
+
 **In one line:** `loadUserData(uid)` fetches `users/{uid}` (network, then cache), installs it as `window.userData`, decides whether the session may write, migrates the schema, backfills a friend code and timezone, and applies the light/dark mode early.
 
 ## How it works

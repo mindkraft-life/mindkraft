@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Activities Test
 
+> [!summary] In plain words
+> Checks that the server can find the right activity inside someone's account, notices when one has been deleted, and writes reminder messages using the activity's current name.
+>
+> **How it connects:** Guards [[Reminders]].
+
 **In one line:** functions/test/activities.test.js (11 tests) protects the server's lookup of activities nested inside `users/{uid}` and the reminder payload copy — so a reminder always names the right, current activity and a deleted one is detected.
 
 ## How it works

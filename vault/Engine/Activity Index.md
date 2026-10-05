@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity Index
 
+> [!summary] In plain words
+> A quick-lookup list the app builds so it can find any activity instantly instead of searching through every life area and path each time. It rebuilds itself whenever activities are added, removed or edited.
+>
+> **How it connects:** It speeds up [[Routines]], the [[Daily Planner]] and [[Quests]].
+
 **In one line:** `mkActivityIndex()` is a memoized `Map` from activity id to `{activity, dim, path, dimIndex, pathIndex, actIndex}` that replaces full tree walks, invalidated by a structural fingerprint and by explicit `mkTouchActivityIndex()` calls.
 
 ## How it works

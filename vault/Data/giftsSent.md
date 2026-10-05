@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # giftsSent
 
+> [!summary] In plain words
+> The sender's own copy of each gift they sent, updated when the friend uses it or says thanks.
+>
+> **How it connects:** Part of [[Social Gifting]] and listed on the [[Friends Page]].
+
 **In one line:** `users/{senderUid}/giftsSent/{giftId}` is the sender's private mirror of a gift they sent, the only place a pending gift is visible to them, updated by the receiver when the gift is consumed or thanked.
 
 ## How it works

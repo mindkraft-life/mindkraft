@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # gritLedger
 
+> [!summary] In plain words
+> A permanent record of every Grit each person earned or spent, like a bank statement. Lines are only ever added — never changed or deleted.
+>
+> **How it connects:** Written by [[Grit Currency]] and shown on the [[Rewards Page]].
+
 **In one line:** `users/{uid}/gritLedger/{entryId}` is the append-only record of every Grit movement (earn, spend, stake, payout, correction), buffered on the client and flushed in batches, never edited or deleted.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Narratives Page
 
+> [!summary] In plain words
+> A placeholder screen that currently only says "Coming soon". Nothing is shown or stored here yet.
+>
+> **How it connects:** It sits in the Pursuits section of the [[Bottom Navigation]], next to Quests and Modes.
+
 **In one line:** Pursuits › Narratives is a placeholder page that only shows a book icon and "Coming soon"; no code renders or stores anything for it.
 
 ## How it works

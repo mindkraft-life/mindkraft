@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # findActivityById
 
+> [!summary] In plain words
+> Finds a particular activity instantly, using the quick-lookup list.
+>
+> **How it connects:** Explained in [[Activity Index]].
+
 **In one line:** `findActivityById(activityId)` returns the activity object with that id in O(1) through the memoized activity index, or `null`; it is used by routines, the planner and quest leaves.
 
 ## How it works

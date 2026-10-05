@@ -4,6 +4,11 @@ last_verified: 2026-10-05
 ---
 # Home
 
+> [!summary] In plain words
+> This is the vault's table of contents. It lists every page, sorted into groups: the screens you see, the features, the shared machinery underneath, the database, the helpers that run on the server, the most important building blocks, and the automatic checks.
+>
+> **How it connects:** Use it to jump anywhere. [[App At A Glance]] gives the overview in words and [[Glossary]] explains the app's vocabulary.
+
 **In one line:** The front door of the Mindkraft documentation vault — every note in the vault, grouped by folder, so anything about the app can be reached in two clicks.
 
 New here? Read [[App At A Glance]], then [[Change Impact Guide]]. See also [[How To Use This Vault]], [[Glossary]], [[Function Index]], [[Vault Log]] and the vault [[README]].

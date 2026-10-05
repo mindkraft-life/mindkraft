@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # composeQuest
 
+> [!summary] In plain words
+> The server side of "Plan it for me". It reads your activities, asks the AI to design a quest, checks and cleans the answer, and sends back a draft — without changing anything in your account. It allows three plans per week.
+>
+> **How it connects:** Behind the [[Quest Composer]]; it talks to the AI through the [[Model Adapter]].
+
 **In one line:** `composeQuest` is an HTTPS callable that turns a short request ("what are you trying to get done?") plus the user's own recently-active activities into a validated quest draft via the Anthropic model, returning the draft without writing anything to the user document.
 
 ## How it works

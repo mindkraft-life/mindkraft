@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Modes
 
+> [!summary] In plain words
+> Seven optional challenges you switch on with Grit, one at a time: Habit (build a new habit), Berserk (a short points sprint), Recovery (rebuild a broken streak quickly), Insurance (protect streaks for a while), Stake (bet on yourself), Pact (a shared promise with a friend) and Focus Window (extra points for a number of days). Each keeps its own score and ends with a results card.
+>
+> **How it connects:** Shown on the [[Modes Page]]. Modes react to every tick ([[Activity Completion]]), some adjust streaks during [[Login-Time Processing]], and they are paid for with [[Grit Currency]]. Each mode has its own page.
+
 **In one line:** Modes are seven opt-in, Grit-priced challenges on the Pursuits › Modes page — Habit, Berserk, Recovery, Insurance, Stake, Pact and Focus Window — of which exactly one can run at a time, stored in `userData.modes` (Pact also in the shared `pacts` collection) and hooked into completions, undos and the login streak walk.
 
 ## How it works

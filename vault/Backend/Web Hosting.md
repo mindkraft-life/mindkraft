@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Web Hosting
 
+> [!summary] In plain words
+> Where the app itself lives online: GitHub Pages publishes the app's files at mindkraft.life whenever the main branch of the project changes. This vault is deliberately kept out of what gets published.
+>
+> **How it connects:** Works with the [[Service Worker]] and [[PWA Install]]. The server helpers are published separately by the [[Deploy Pipeline]].
+
 **In one line:** The Mindkraft web client (index.html, app.js, style.css, sw.js, manifest, icons, legal pages) is served as static files by GitHub Pages from the repository root at mindkraft.life — Firebase Hosting is not used — and `_config.yml` keeps the documentation vault and CLAUDE.md out of the published site.
 
 ## How it works

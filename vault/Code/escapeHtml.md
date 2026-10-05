@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # escapeHtml
 
+> [!summary] In plain words
+> Cleans any text people typed (names, titles) before it is shown on screen, so it cannot break or hijack the page.
+>
+> **How it connects:** Explained in [[Rendering And Window Globals]].
+
 **In one line:** `escapeHtml(text)` escapes `& < > " '` for safe insertion into HTML strings, returning `''` for null/undefined — used about 200 times wherever user or friend text (activity names, quest titles, friend names, challenge names) is built into `innerHTML`.
 
 ## How it works

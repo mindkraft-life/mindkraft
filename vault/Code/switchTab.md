@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # switchTab
 
+> [!summary] In plain words
+> Shows the screen you asked for and draws its contents.
+>
+> **How it connects:** Explained in [[Tab Switching]]; driven by the [[Bottom Navigation]].
+
 **In one line:** `window.switchTab(tabName)` activates one of the legacy page panels (`activities`, `challenges`, `projects`, `friends`, `people`, `analytics`, `settings`), renders it, and is wrapped by Versus (fetch on entry, detach listener on exit) and Modes (refresh the banner).
 
 ## How it works

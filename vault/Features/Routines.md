@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Routines
 
+> [!summary] In plain words
+> Routines are named bundles of activities, like "Morning Routine", optionally with a time of day. They power the "By Routine" ordering on the home screen. One special routine, "Active", is refilled automatically every Monday with the activities that count towards that week's Grit bonus.
+>
+> **How it connects:** Used by [[Activity List And Grid Views]]. The "Active" routine is taken from the [[Grit Weekly Payout]] week.
+
 **In one line:** Routines (stored as `groups`) bundle activities into time-aware blocks like "Morning Routine" with an optional time window, power the "By Routine" sort on My Activities, and include a system "Active" routine that is refilled every Monday from the week's Grit contributors.
 
 ## How it works

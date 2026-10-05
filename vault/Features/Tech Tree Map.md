@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Tech Tree Map
 
+> [!summary] In plain words
+> The Map is a personal growth web. Your existing activities are the starting points; AI suggests new practices that branch out from them towards up to five goals you set, and each goal is drawn as a coloured thread. When you become consistent enough at an activity (called mastery), the next part opens, you earn points and Grit, and the web grows further.
+>
+> **How it connects:** Shown on the [[Map Page]], built by [[Map Weaving]], with hidden parts uncovered through the [[Map Reveal Loop]]. It is checked again every time you tick something off ([[Activity Completion]]).
+
 **In one line:** The Map ("the Web", stored as `userData.techTree`) is an AI-woven graph that grows out of the user's real activities toward up to five goals: anchor nodes are their existing activities, suggestion nodes are new practices to adopt, and a node resolves when its activity reaches a mastery threshold, paying XP and Grit and widening the web.
 
 ## How it works

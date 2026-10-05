@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity Completion
 
+> [!summary] In plain words
+> What happens when you tick an activity off. You get points (more if you are on a streak, double if a boost is waiting), your streak grows, the moment is written into the activity's history, you earn a little Grit, your life area and any quests using that activity move forward, and you may level up. Un-ticking takes back what was given (one known exception, the Focus Window bonus, is listed in the [[Change Impact Guide]]).
+>
+> **How it connects:** This is the busiest moment in the app: right after it, the [[Daily Planner]], [[Tech Tree Map]], [[Versus Challenges]] and [[Modes]] all react in turn (see [[Hook Chains]]). Points and levels: [[XP And Levels]]. Streaks: [[Streaks And Shields]]. Grit: [[Grit Currency]].
+
 **In one line:** Tapping an activity runs `completeActivity`, which predicts and awards XP (base XP × streak multiplier, ×2 with a Grit or gifted boost), advances the streak once per window, records the completion, pays the Grit drip, moves dimension XP and quest progress, levels the user up, and saves — then a chain of wrappers updates the planner, Map, Versus and Modes.
 
 ## How it works

@@ -4,6 +4,11 @@ last_verified: 2026-10-05
 ---
 # App At A Glance
 
+> [!summary] In plain words
+> This is the best place to start. Mindkraft is an app you add to your phone's home screen that turns your habits into a game: you tick things off, earn points and levels, keep up streaks, earn a currency called Grit, plan bigger goals, and team up with or compete against friends. This page shows how the main parts fit together — the screens you see, the online database that remembers everything about you, and a few helpers running on a server that send notifications and power the AI features.
+>
+> **How it connects:** Read this first, then the [[Change Impact Guide]]. Every other page in the vault goes deeper into one of the parts named here.
+
 **In one line:** Mindkraft is a life-gamification Progressive Web App at mindkraft.life where people track habits as activities, earn XP and levels, keep streaks with shields, earn and spend a currency called Grit, run quests, an AI-woven skill map and Grit-staked modes, and compete or cooperate with friends — built as a single vanilla-JS client over one Firestore document per user, plus a small set of Firebase Cloud Functions.
 
 ## What the user sees

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Versus Challenges
 
+> [!summary] In plain words
+> A bet between two friends. One person proposes targets (up to five activities with counts), a time limit, and a stake of 25 to 100 Grit; the other accepts by matching the stake and choosing which of their own activities count. Whoever finishes all targets first — or is ahead when time runs out — wins the whole pot; a tie gives both stakes back.
+>
+> **How it connects:** Shown on the [[Challenges Page]]. Progress comes from real ticks ([[Activity Completion]]), stakes use [[Grit Currency]], and deadlines are also enforced by a server helper that announces results by notification ([[Push Delivery]]).
+
 **In one line:** Versus Challenges are head-to-head Grit wagers between two friends — up to five activity requirements with target counts over a set number of days, each side staking the same 25–100 Grit into a shared pot — and they are the whole of the Challenges page.
 
 ## How it works

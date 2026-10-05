@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Rules Test
 
+> [!summary] In plain words
+> Pretends to be a dishonest user and tries to break the database rules — reading other people's data, faking a challenge win, gifting to strangers — and checks that every attempt is refused. It currently cannot run, because the rules file is not stored in this project.
+>
+> **How it connects:** Guards the [[Security Rules]].
+
 **In one line:** test/rules/firestore.rules.test.mjs runs a hostile client against the Firestore emulator to prove the security rules for Versus challenges, the Grit ledger, gifts and mirrors, leaderboard boards, pacts, friend requests and mode reminders — but it reads `../../firestore.rules`, a file that is not in the repository, so it cannot run as checked in.
 
 ## How it works

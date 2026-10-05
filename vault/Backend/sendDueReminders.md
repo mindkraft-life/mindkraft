@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # sendDueReminders
 
+> [!summary] In plain words
+> A server task that runs every minute, finds every notification that is due for anyone, sends it to the right phone, and then sets when each one should go off next. It skips anything already sent today and switches off reminders for activities that were deleted.
+>
+> **How it connects:** Delivers [[Reminders]] and [[Habit Mode]] nudges using [[Push Delivery]] and [[Reminder Scheduling]].
+
 **In one line:** `sendDueReminders` is a Cloud Scheduler function that runs every minute, queries every active reminder whose `nextSendAt` has passed across all users, sends each one as a Web Push, and rolls its `nextSendAt` forward whatever happened.
 
 ## How it works

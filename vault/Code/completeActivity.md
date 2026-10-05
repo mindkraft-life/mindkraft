@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # completeActivity
 
+> [!summary] In plain words
+> The action behind ticking an activity off — the heart of the app. It gives points, grows the streak, records the history, pays Grit, and then lets every other feature react.
+>
+> **How it connects:** Explained in [[Activity Completion]] and [[Hook Chains]].
+
 **In one line:** `window.completeActivity(dimIndex, pathIndex, actIndex)` logs one completion of an activity — XP with streak multiplier and boosts, streak grant, history entry, Grit drip, gifted boost, dimension XP, quest progress, level-ups, optional self-delete, toast and save — and is wrapped four times by the planner, Map, Versus and Modes.
 
 ## How it works

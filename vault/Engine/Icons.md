@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Icons
 
+> [!summary] In plain words
+> The little pictures used throughout the app all come from one icon set, so they look the same on every phone. Quests and rewards let you pick an icon from a short list.
+>
+> **How it connects:** Used on every screen, including the [[Level-Up Share Card]], [[Quests]] and [[Level Rewards]].
+
 **In one line:** Mindkraft draws icons with the Phosphor icon webfont (bold and fill weights, pinned to @phosphor-icons/web 2.1.2 on unpkg), via `phIcon()` for HTML and `phGlyph()` for canvas/SVG text, and stores user-picked icons as `ph-<name>` strings.
 
 ## How it works

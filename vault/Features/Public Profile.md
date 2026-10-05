@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Public Profile
 
+> [!summary] In plain words
+> A small, safe summary of you that friends are allowed to see — name, picture, level, recent points, title and similar — refreshed every time your data is saved. Your private details and full history are never shared.
+>
+> **How it connects:** Read by the [[Friends Page]], [[Leaderboards Page]] and [[Friend Profile Page]]. The title comes from [[Character Title And Life Balance]].
+
 **In one line:** After every save and on every login, the client publishes a small public snapshot of the account — name, photo, friend code, level, total/weekly/today XP, XP per hour, category XP, character title, best streak and active days — to `publicProfiles/{uid}` so friends can see it without reading the private user document.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # gifts
 
+> [!summary] In plain words
+> Each person's gift inbox: shields and boosts that friends have sent, waiting to be used.
+>
+> **How it connects:** Part of [[Social Gifting]]. The sender keeps a matching copy of each gift so both sides can see what happened to it.
+
 **In one line:** `users/{receiverUid}/gifts/{giftId}` is a friend-sent gift (a shield or a double-XP boost) waiting in the receiver's inbox, created by the sender in the same batch as their [[giftsSent]] mirror and consumed by the receiver's device.
 
 ## How it works

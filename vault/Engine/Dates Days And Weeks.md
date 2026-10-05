@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Dates Days And Weeks
 
+> [!summary] In plain words
+> The app's calendar rules: "today" always means today where you are, every week starts on Monday, two-week periods start from a fixed Monday, and months start on the 1st. Reminders use full time-zone rules so they arrive at the right local time even when clocks change.
+>
+> **How it connects:** Used by [[Activity Frequencies And Cycles]], [[Streaks And Shields]], the [[Grit Weekly Payout]], [[Leaderboard Payouts]] and [[Reminder Scheduling]].
+
 **In one line:** All day logic in the Mindkraft client is local-time `YYYY-MM-DD` strings from `toLocalDateStr()`, every week starts on Monday, fortnights are anchored to Monday 6 January 2025, and only the server's reminder maths uses real IANA timezones.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Modes Test
 
+> [!summary] In plain words
+> Checks the wording and timing of Habit Mode nudges: stay quiet if the habit is already done, and quote your own reason word for word after a missed day.
+>
+> **How it connects:** Guards [[Habit Mode]].
+
 **In one line:** functions/test/modes.test.js (18 tests) pins the send-time decision for mode reminders: an already-logged habit stays silent, the pre-window nudge names the habit and anchor, the post-window nudge says there is still time, and the morning after a miss quotes the user's own `why` verbatim.
 
 ## How it works

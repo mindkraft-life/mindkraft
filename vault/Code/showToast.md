@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # showToast
 
+> [!summary] In plain words
+> Shows a small pop-up message that fades away after a few seconds.
+>
+> **How it connects:** Explained in [[Toasts And Feedback]].
+
 **In one line:** `showToast(message, color = 'blue', onTap = null, icon = null)` shows a short stacked notification (newest on top, gone after ~3.2 s) in one of four tones, with an optional Phosphor icon and an optional tap action — the app's most-called UI helper (about 200 call sites).
 
 ## How it works

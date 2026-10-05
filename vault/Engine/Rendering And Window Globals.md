@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Rendering And Window Globals
 
+> [!summary] In plain words
+> How screens are drawn: the app builds each screen's content and places it on the page, with every button connected to the action it should perform. Anything a person typed, such as a name, is cleaned first so it cannot be mistaken for part of the page itself.
+>
+> **How it connects:** Shared by every screen; see also [[Tab Switching]] and [[Toasts And Feedback]].
+
 **In one line:** The Mindkraft UI is built by app.js functions that concatenate HTML strings into `innerHTML`, wire events with inline `onclick="someFn(...)"` attributes, and therefore expose every callable handler on `window` because app.js is an ES module whose top-level functions are otherwise private.
 
 ## How it works

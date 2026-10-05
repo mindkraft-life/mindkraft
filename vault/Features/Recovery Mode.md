@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Recovery Mode
 
+> [!summary] In plain words
+> For getting back on track after losing a streak. Up to three activities climb twice as fast — one extra step on each day you do them — until each one is back to its old best.
+>
+> **How it connects:** One of the [[Modes]]. It works alongside the daily streak check ([[Streaks And Shields]], [[Login-Time Processing]]).
+
 **In one line:** Recovery Mode (15 Grit) makes up to three broken streaks climb twice as fast — one bonus step on each day the activity is logged — until each is back at the best streak it had when the mode started (at most one past it).
 
 ## How it works

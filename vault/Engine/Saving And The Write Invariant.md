@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Saving And The Write Invariant
 
+> [!summary] In plain words
+> Almost everything about your account is kept as one big record online. Whenever something changes, the whole record is saved again, with a backup copy tucked inside once a day. Strict safety checks stop the app from saving if your data did not load properly or belongs to someone else. Anything written by the server, or shared between two people, is kept in separate places so this full re-save can never wipe it.
+>
+> **How it connects:** Every feature depends on this. Backups are in [[Backup Export Import]] and loading in [[Loading And Migration]]. The summary friends can see is refreshed at the same moment ([[Public Profile]]).
+
 **In one line:** Almost all client state is persisted by `saveUserData()`, which does a full `setDoc` overwrite of `users/{uid}` from `window.userData`, guarded by `canPersistUserData()` and folded with a once-a-day backup snapshot — so anything another writer puts at the top level of that document is clobbered on the next save.
 
 ## How it works

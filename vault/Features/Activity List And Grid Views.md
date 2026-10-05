@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity List And Grid Views
 
+> [!summary] In plain words
+> Controls how the home screen shows your activities: as a list of cards or as a grid of tiles in different sizes, sorted by routine, by what matters today, by how often they happen, or by longest streak. Holding a tile opens a menu of extra actions.
+>
+> **How it connects:** This is the main part of the [[My Activities Page]]. Routines used for grouping are in [[Routines]], and tapping a card triggers [[Activity Completion]].
+
 **In one line:** The My Activities page renders activities either as a sorted, grouped list of cards or as a bento grid of resizable tiles, with four sort modes, per-activity tile sizes, a long-press action menu, and the state saved in settings.
 
 ## How it works

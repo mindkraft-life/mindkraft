@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Focus Window
 
+> [!summary] In plain words
+> For a set number of days (3 to 90), every activity you tick earns 10% extra points. Longer windows cost more Grit to start.
+>
+> **How it connects:** One of the [[Modes]]; it adds to [[XP And Levels]]. A known issue — the bonus is not taken back when you un-tick — is listed in the [[Change Impact Guide]].
+
 **In one line:** Focus Window is a mode that adds +10% XP to every positive completion, all day, for 3–90 days, priced from 25 Grit (3 days) to 150 Grit (90 days); each boost is paid immediately as separate mode XP, and the total is logged to history when the window ends.
 
 ## How it works

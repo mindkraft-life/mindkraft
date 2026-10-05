@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Service Worker
 
+> [!summary] In plain words
+> A small helper the phone keeps running on the app's behalf. It stores a copy of the app so it opens quickly and works offline, receives notifications even when the app is closed, and opens the right screen when you tap one.
+>
+> **How it connects:** It shows what [[Push Delivery]] sends for [[Reminders]], gifts, challenges and pacts, and it is what makes [[PWA Install]] possible.
+
 **In one line:** sw.js pre-caches the Mindkraft app shell under a versioned cache (`mindkraft-shell-v185`), serves it cache-first with at most hourly background revalidation, never touches Firebase traffic, and receives Web Push notifications and routes taps back into the app.
 
 ## How it works

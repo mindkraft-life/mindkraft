@@ -4,6 +4,11 @@ last_verified: 2026-10-05
 ---
 # Glossary
 
+> [!summary] In plain words
+> The app has its own vocabulary — Grit, shields, quests, modes, the Map and so on. This page explains each word in one line and points to the page that tells the full story.
+>
+> **How it connects:** Pairs with [[App At A Glance]]; every word links to its own page.
+
 **In one line:** Mindkraft's own vocabulary — the words used in the UI, the code and these notes — each with a one-line meaning and the note that explains it.
 
 | Term | Meaning | Note |

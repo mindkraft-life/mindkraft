@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Login-Time Processing
 
+> [!summary] In plain words
+> Each time you open the app it catches up on the time it was closed: it works out streaks and uses shields for missed periods, applies missed-period penalties, lets modes protect or boost streaks, checks the Map for newly mastered activities, and settles the weekly Grit bonus — then saves once.
+>
+> **How it connects:** Part of the [[App Boot Sequence]]. It affects [[Streaks And Shields]], [[Negative Activities And Skip Penalty]], [[Modes]], the [[Tech Tree Map]] and the [[Grit Weekly Payout]].
+
 **In one line:** Every time the app signs in, `processStreakPauses()` walks every activity to settle streaks, shields and skip penalties for the days the app was closed, then runs the Modes, Tech Tree and Grit catch-up passes, and saves once if anything changed.
 
 ## How it works

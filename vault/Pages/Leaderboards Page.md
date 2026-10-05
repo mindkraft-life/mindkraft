@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Leaderboards Page
 
+> [!summary] In plain words
+> Ranks you and your friends by points earned today, this week, or per hour. You choose who appears on your board, and you can opt in to a weekly prize where the top three on your board win Grit.
+>
+> **How it connects:** The prize rules are in [[Leaderboard Payouts]]. The numbers shown for friends come from their [[Public Profile]], and friends themselves are covered in [[Friends]].
+
 **In one line:** Social › Leaderboards ranks you and your friends by XP Today, This Week or XP per hour, lets you edit who is on your board, and holds the weekly Grit payout opt-in with last week's result.
 
 ## How it works

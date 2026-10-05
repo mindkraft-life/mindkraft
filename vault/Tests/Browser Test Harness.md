@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Browser Test Harness
 
+> [!summary] In plain words
+> The shared test setup that runs a copy of the real app in an invisible browser with a pretend database, so tests can try things safely without touching anyone's real account.
+>
+> **How it connects:** Used by all the in-browser checks listed in [[Test Suites Overview]].
+
 **In one line:** test/social/harness.mjs builds a throwaway copy of the app in a temp directory — index.html with an import map that redirects the Firebase CDN modules to local stubs, app.js with test hooks appended inside its module scope, and style.css — serves it over HTTP, and every browser suite drives that copy in headless Chromium.
 
 ## How it works

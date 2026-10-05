@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Quest Composer
 
+> [!summary] In plain words
+> The "Plan it for me" button. You describe what you are trying to achieve, choose one-off or repeating and roughly how long, and AI builds a draft quest mostly out of activities you already have (it may suggest a few new ones). Nothing is saved until you review the draft and press create. You can use it three times a week.
+>
+> **How it connects:** It produces drafts for [[Quests]]. The AI work happens on a server ([[Model Adapter]]). A known mismatch about who is allowed to use it is listed in the [[Change Impact Guide]].
+
 **In one line:** "Plan it for me" on the Quests page sends a short goal, a shape (one-off or repeating) and a size to the `composeQuest` Cloud Function, and opens the returned AI draft in the real quest builder, where nothing is saved until the user taps Create quest.
 
 ## How it works

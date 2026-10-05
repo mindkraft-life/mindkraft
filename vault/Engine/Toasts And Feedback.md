@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Toasts And Feedback
 
+> [!summary] In plain words
+> The small messages that pop up and fade away ("+12 XP", "Saved", "Shield added") and the numbers that float up from a card when you tick it off.
+>
+> **How it connects:** Used all over the app, especially by [[Activity Completion]] and [[Grit Currency]].
+
 **In one line:** Short-lived feedback in Mindkraft comes from `showToast()` (stacked message toasts with a colour tone and optional icon/tap action), `_showToastPill()` (the single XP/undo pill), and floating "+XP"/"+Grit" numbers spawned over the tapped card.
 
 ## How it works

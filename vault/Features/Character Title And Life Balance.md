@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Character Title And Life Balance
 
+> [!summary] In plain words
+> Your profile shows a "life balance" chart across five areas — Body, Mind, People, Work and Extra — based on activities you tag, and gives you a title (such as "The Athlete" or "The Well-Rounded") based on where most of your effort goes and your level.
+>
+> **How it connects:** Shown on the [[Profile Page]] and [[Friend Profile Page]], and shared through the [[Public Profile]].
+
 **In one line:** The Profile shows a "life balance" spider chart across five life categories (Body, Mind, People, Work, Extra) built from activities the user has tagged, and derives a character title from the dominant category and level (e.g. "The Athlete" → "The Iron Will", or "The Well-Rounded" when balanced).
 
 ## How it works

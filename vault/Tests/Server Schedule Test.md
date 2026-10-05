@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Schedule Test
 
+> [!summary] In plain words
+> Checks the reminder timing maths, including daylight-saving clock changes and moving time zone.
+>
+> **How it connects:** Guards [[Reminder Scheduling]].
+
 **In one line:** functions/test/schedule.test.js (17 tests) proves the reminder fire-time maths — HH:mm and IANA validation, the Asia/Kolkata fallback, today-vs-tomorrow, DST spring-forward and fall-back, timezone changes and malformed input — the part of reminders that cannot be eyeballed.
 
 ## How it works

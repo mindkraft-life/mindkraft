@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Pact Test
 
+> [!summary] In plain words
+> Checks the maths of pact progress and that pact nudges fire at the right moments and never become spam.
+>
+> **How it connects:** Guards [[Pact Mode]].
+
 **In one line:** functions/test/pact.test.js (19 tests) protects the Pact progress maths on both document shapes and the anti-spam behaviour of the halfway and falling-behind nudges across sequences of writes.
 
 ## How it works

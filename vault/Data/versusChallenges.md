@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # versusChallenges
 
+> [!summary] In plain words
+> One record per head-to-head challenge, shared by both players: the targets, the Grit pot, each side's progress and the result.
+>
+> **How it connects:** Part of [[Versus Challenges]]. Deadlines are also checked by the server, and results are announced by notification ([[Push Delivery]]).
+
 **In one line:** `versusChallenges/{id}` is one head-to-head Grit wager between two friends — the only document both accounts read and write — holding the stake escrowed in `pot`, each side's activity mapping and progress counters, and the payout waiting to be claimed.
 
 ## How it works

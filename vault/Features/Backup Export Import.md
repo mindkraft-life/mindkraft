@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Backup Export Import
 
+> [!summary] In plain words
+> Safety nets for your data. The app keeps one automatic backup copy per day; you can also make one now, restore it, download all your data as a file, load a file back in, or wipe everything and start over.
+>
+> **How it connects:** Found on the [[Settings Page]] and built on how saving works ([[Saving And The Write Invariant]]).
+
 **In one line:** Settings › Data offers a once-a-day automatic cloud backup embedded in the user document, "Backup Now", "Restore Backup", JSON export/import of the whole account, and a double-confirmed full reset.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # App Boot Sequence
 
+> [!summary] In plain words
+> The order of events when you open the app while signed in: load your data, catch up on everything that happened while the app was closed (streaks, penalties, the weekly Grit bonus, challenges, gifts, friend requests, leaderboard prizes, modes), show the home screen, and then decide whether to show the welcome tour, the tutorial, or nothing.
+>
+> **How it connects:** Loading is explained in [[Loading And Migration]] and catching up in [[Login-Time Processing]]. New users see the [[Onboarding Page]].
+
 **In one line:** When Firebase Auth reports a signed-in user, the `onAuthStateChanged` handler in app.js loads the user document, runs the login-time passes, renders the dashboard, fires every feature's login hook and then decides between onboarding, the tutorial or the normal app.
 
 ## How it works

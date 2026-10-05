@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Firebase Client
 
+> [!summary] In plain words
+> Firebase is the Google service Mindkraft is built on. It handles signing in, stores everyone's data online, runs the helpers that live on the server, and counts basic usage. This part is the app's single connection to all of that.
+>
+> **How it connects:** Used by everything that saves or loads data ([[Saving And The Write Invariant]], [[Loading And Migration]]) and by the AI and reminder services ([[Model Adapter]], [[Reminders]]).
+
 **In one line:** app.js imports the Firebase 10.8.0 web SDK from the gstatic CDN and creates one app, one Auth, one Firestore, one Analytics and one Functions client (region asia-south1) that every feature in the Mindkraft client shares.
 
 ## How it works

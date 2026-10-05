@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Firestore Indexes
 
+> [!summary] In plain words
+> Ready-made shortcuts that let the database answer certain questions quickly, such as "which reminders are due right now?" or "which challenges am I part of?".
+>
+> **How it connects:** Needed by [[Reminders]], [[Versus Challenges]] and [[Pact Mode]], and published by the [[Deploy Pipeline]].
+
 **In one line:** firestore.indexes.json declares the five composite indexes Mindkraft's queries need — reminders due-time, three for Versus challenges and one for Pacts — and the deploy workflow pushes them with `firestore:indexes`.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Server Quest Composer Test
 
+> [!summary] In plain words
+> Checks that the AI planner cleans up messy AI answers properly: no invented activities, sensible size limits, and nothing broken ever reaching the app.
+>
+> **How it connects:** Guards the [[Quest Composer]].
+
 **In one line:** functions/test/quest-composer.test.js (34 tests) protects how the Quest Composer repairs and validates model output — wrapper tolerance, gathering loose leaves, rejecting empty quests, keeping only real activity ids, clamping frequencies and XP, capping leaves and depth — and how it chooses the activities offered to the model.
 
 ## How it works

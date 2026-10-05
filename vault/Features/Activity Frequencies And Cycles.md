@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity Frequencies And Cycles
 
+> [!summary] In plain words
+> Decides when an activity counts as "done for now" and when it resets: every day, every week (weeks start on Monday), every two weeks, every month, a set number of times on chosen weekdays or every few days, or "whenever" for one-off tasks.
+>
+> **How it connects:** Streaks ([[Streaks And Shields]]), missed-period penalties ([[Negative Activities And Skip Penalty]]) and the weekly Grit bonus ([[Grit Weekly Payout]]) all rely on these periods. The calendar rules behind them are in [[Dates Days And Weeks]].
+
 **In one line:** Each activity's `frequency` — daily, weekly, biweekly, monthly, custom (N times per week on chosen days, or N times per K-day cycle) or occasional — decides when it counts as done, when it resets, and which window streaks and penalties are judged in.
 
 ## How it works

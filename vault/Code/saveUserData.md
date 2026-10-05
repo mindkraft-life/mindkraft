@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # saveUserData
 
+> [!summary] In plain words
+> The single action that saves your whole account to the online database after any change, tucking a backup copy inside once a day. Almost every feature relies on it.
+>
+> **How it connects:** Explained in [[Saving And The Write Invariant]]. It also refreshes the summary friends can see ([[Public Profile]]).
+
 **In one line:** `saveUserData()` writes the entire in-memory `window.userData` to `users/{uid}` with a replacing `setDoc`, embedding a once-a-day backup snapshot, then refreshes the public profile — it is the persistence call behind almost every feature (about 100 call sites).
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # pacts
 
+> [!summary] In plain words
+> One record per pact, shared by both partners: each person's targets and progress, the stakes, and how it ended.
+>
+> **How it connects:** Part of [[Pact Mode]].
+
 **In one line:** `pacts/{id}` is a Pact Mode agreement between two friends — each commits their own activities and targets, each escrows 40 Grit, and both either keep the pact (stakes back with a bonus) or both lose — stored top-level because two accounts must read it.
 
 ## How it works

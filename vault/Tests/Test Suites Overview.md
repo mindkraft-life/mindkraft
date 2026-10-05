@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Test Suites Overview
 
+> [!summary] In plain words
+> Automatic checks that test the app without a person clicking through it. There are three kinds: quick checks of the server helpers (run automatically before server changes go live), checks that run the real app in an invisible browser (run by hand), and checks of the database security rules (which currently cannot run because the rules file is not stored in the project).
+>
+> **How it connects:** Each check has its own page in the Tests group of [[Home]]. How server changes go live is in [[Deploy Pipeline]].
+
 **In one line:** Mindkraft has three kinds of tests — Node unit tests for the Cloud Functions libraries (run in CI before every functions deploy), headless-Chromium "invariant" suites that drive the real app.js against a stubbed Firestore (run by hand), and a Firestore-emulator suite for the security rules (run by hand, and currently missing the rules file it loads).
 
 ## How it works

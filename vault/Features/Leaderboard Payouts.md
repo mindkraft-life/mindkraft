@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Leaderboard Payouts
 
+> [!summary] In plain words
+> If you opt in, every Monday the top three on your weekly leaderboard win Grit — more when the group is bigger. To prevent cheating, only friends who were active that week and who also have you on their own board count.
+>
+> **How it connects:** Shown on the [[Leaderboards Page]], built on [[Friends]], and paid into [[Grit Currency]]. Prizes are settled when you open the app ([[App Boot Sequence]]).
+
 **In one line:** Friends leaderboards rank XP Today, This Week or XP/Hour, and users who opt in are paid Grit each Monday for 1st, 2nd and 3rd place last week — 3×, 2× and 1× the number of scored players — where only friends who were active that week and have you on their own board count.
 
 ## How it works

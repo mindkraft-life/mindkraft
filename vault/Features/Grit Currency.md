@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Grit Currency
 
+> [!summary] In plain words
+> Grit is the app's money, and it can only be earned through real effort: one for each activity you tick, plus bonuses for good weeks, long streaks, mastering activities, finishing quests, and winning leaderboards and bets. You spend it on shields, double-points boosts, gifts, modes, bets and uncovering the Map. Every Grit earned or spent is written down in a permanent statement.
+>
+> **How it connects:** Weekly earnings are in [[Grit Weekly Payout]]. Spending happens in the [[Grit Shop]], [[Social Gifting]], [[Modes]], [[Versus Challenges]] and the [[Map Reveal Loop]]. It is all shown on the [[Rewards Page]].
+
 **In one line:** Grit is Mindkraft's spendable effort currency — earned only from real activity (a 1-Grit drip per completion, weekly bonuses, streak, mastery, cadence, quest, leaderboard and wager payouts) and spent on shields, XP boosts, gifts, mode entries, wagers, Map reveals and regenerations — with the balance in `users/{uid}.grit` and every movement in the `gritLedger` subcollection.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Legacy Reminder Script
 
+> [!summary] In plain words
+> An old way of sending reminders that has since been replaced. It is still in the project, but nothing uses it.
+>
+> **How it connects:** Replaced by the current [[Reminders]] system and listed as a leftover in the [[Change Impact Guide]].
+
 **In one line:** scripts/send-reminders.js is the old GitHub-Actions-cron reminder sender, replaced by the `sendDueReminders` Cloud Function; nothing in the repository runs it any more and the user fields it reads are no longer written.
 
 ## How it works

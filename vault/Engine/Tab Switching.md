@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Tab Switching
 
+> [!summary] In plain words
+> What happens when you move between screens: the screen you asked for is shown, its contents are drawn fresh, and the app remembers whether you last looked at your list or your categories.
+>
+> **How it connects:** Driven by the [[Bottom Navigation]]; it opens every screen in the Pages group of [[Home]].
+
 **In one line:** `window.switchTab(tabName)` and `window.switchSubTab(parent, sub)` show one `.tab-content` panel, render it on demand and persist the Activities sub-tab; the Navigation v5 script in index.html drives them for every legacy page and toggles the three newer pages (Modes, Narratives, Rewards) itself.
 
 ## How it works

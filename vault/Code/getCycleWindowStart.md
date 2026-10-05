@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # getCycleWindowStart
 
+> [!summary] In plain words
+> Answers the question "which period does this date belong to?" for an activity — that day, that Monday-to-Sunday week, that fortnight, that month, or that custom cycle.
+>
+> **How it connects:** Explained in [[Activity Frequencies And Cycles]] and [[Dates Days And Weeks]].
+
 **In one line:** `getCycleWindowStart(activity, date)` returns local midnight at the start of the frequency window containing `date` — the day, the Monday week, the fortnight from 6 Jan 2025, the calendar month, or the custom cycle — or `null` for occasional activities; it defines "a window" for streaks, penalties, Grit and modes.
 
 ## How it works

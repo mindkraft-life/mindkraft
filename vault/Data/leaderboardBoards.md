@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # leaderboardBoards
 
+> [!summary] In plain words
+> Each opted-in person's published leaderboard: who is on it and their weekly scores. Only people on that board can read it, which is how the app checks that friendships go both ways before paying weekly prizes.
+>
+> **How it connects:** Part of [[Leaderboard Payouts]].
+
 **In one line:** `leaderboardBoards/{uid}` is a user's published leaderboard roster and weekly score, readable only by people on that roster, which is how the weekly Grit payout tests mutuality between friends.
 
 ## How it works

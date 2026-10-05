@@ -10,9 +10,12 @@
 //      does not exist
 //   3. names in "Key functions" sections, and Function Index entries, that
 //      are not defined anywhere in the code
+//   4. a page without its "In plain words" box at the top, or a box that
+//      mentions a code or database name, uses backticks, or links to a page
+//      named after one (the box is for non-technical readers)
 // and, informationally:
-//   4. orphan notes (no incoming links)
-//   5. functions defined in the code but missing from the Function Index
+//   5. orphan notes (no incoming links)
+//   6. functions defined in the code but missing from the Function Index
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -59,7 +62,11 @@ for (const rel of CODE_FILES) {
 
 // ── Checks ───────────────────────────────────────────────────────────────
 const unresolved = [], incoming = new Map([...notes.keys()].map((n) => [n, 0]));
-const templateProblems = [], unknownFns = [];
+const templateProblems = [], unknownFns = [], plainProblems = [];
+// Names a plain-words box must never contain: code identifiers that look like
+// code (camelCase or underscores), and pages titled with such a name.
+const codeLike = (w) => defined.has(w) && /[a-z][A-Z]|_/.test(w);
+const codeNamedPage = (name) => { const n = notes.get(name); return !!n && (n.folder === 'Code' || n.folder === 'Data' || defined.has(name)); };
 for (const [name, n] of notes) {
     for (const target of linksOf(n.text)) {
         if (!notes.has(target)) unresolved.push(`${n.folder}/${name} → [[${target}]]`);
@@ -80,6 +87,14 @@ for (const [name, n] of notes) {
         if (kf) for (const m of kf[1].matchAll(/`([A-Za-z_$][\w$]*)`/g)) if (!defined.has(m[1])) unknownFns.push(`${name}: \`${m[1]}\``);
     }
     if (n.folder === 'Code' && !defined.has(name)) unknownFns.push(`Code note names no real function: ${name}`);
+    const box = n.text.match(/^> \[!summary\] In plain words\n((?:>.*\n)+)/m);
+    if (!box) plainProblems.push(`${name}: no "In plain words" box`);
+    else {
+        const body = box[1];
+        if (body.includes('`')) plainProblems.push(`${name}: backtick in plain-words box`);
+        for (const w of body.replace(/\[\[[^\]]*\]\]/g, '').match(/[A-Za-z_$][\w$]*/g) || []) if (codeLike(w)) plainProblems.push(`${name}: code name "${w}" in plain-words box`);
+        for (const t of linksOf(body)) if (codeNamedPage(t)) plainProblems.push(`${name}: plain-words box links code-named page [[${t}]]`);
+    }
 }
 const fi = notes.get('Function Index');
 const indexed = new Set();
@@ -92,6 +107,7 @@ console.log(`notes: ${notes.size}   functions defined in code: ${defined.size}  
 show('UNRESOLVED LINKS', unresolved);
 show('TEMPLATE / SOURCE PROBLEMS', templateProblems);
 show('UNKNOWN FUNCTION NAMES', unknownFns);
+show('PLAIN-WORDS BOX PROBLEMS', plainProblems);
 show('ORPHAN NOTES (no incoming links)', orphans);
 show('CODE FUNCTIONS MISSING FROM FUNCTION INDEX', missingFromIndex, 40);
-process.exit(unresolved.length || templateProblems.length || unknownFns.length ? 1 : 0);
+process.exit(unresolved.length || templateProblems.length || unknownFns.length || plainProblems.length ? 1 : 0);

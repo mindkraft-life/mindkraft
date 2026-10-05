@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Challenges Page
 
+> [!summary] In plain words
+> Head-to-head bets with a friend: you both put in the same amount of Grit, agree targets (for example "run 10 times in two weeks"), and whoever does better takes the whole pot. This page lists invitations, live challenges with progress bars, and recent results, and lets you start a new one.
+>
+> **How it connects:** All the rules are in [[Versus Challenges]]. Progress only counts when you really tick activities off ([[Activity Completion]]), and the stakes are paid in [[Grit Currency]].
+
 **In one line:** Social › Challenges is entirely the Versus board: pending invites, live head-to-head wagers with progress bars, and recently resolved results, plus the sheet for creating a new challenge.
 
 ## How it works

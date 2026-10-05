@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Grit Shop
 
+> [!summary] In plain words
+> Where Grit is spent on yourself: a streak shield (40 Grit, kept in a pool until you place it on an activity), a double-points boost for your next tick (50 Grit, once a month), and cheaper gifts for friends. A purchase only goes through once it has been safely saved.
+>
+> **How it connects:** Part of the [[Rewards Page]]. Shields protect [[Streaks And Shields]], boosts affect [[Activity Completion]], and gifts are [[Social Gifting]].
+
 **In one line:** On the Rewards page users spend Grit on streak shields (40 Grit into a pool, then applied to an activity), a monthly double-XP boost (50 Grit, one per calendar month, applied to the next completion) and half-price gifts for friends, with every purchase persisted before it is granted.
 
 ## How it works

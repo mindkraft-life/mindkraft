@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Map Weaving
 
+> [!summary] In plain words
+> The step where AI builds or extends your Map. You type your goals; the app sends your goals and activities to the AI service, which sends back a web of suggestions. You can add goals, redo one goal's thread (the first few times free, then once a month free, otherwise for Grit), and the web quietly grows as you master things.
+>
+> **How it connects:** Part of the [[Tech Tree Map]]. The AI work runs on a server ([[Model Adapter]]), and paid redos use [[Grit Currency]].
+
 **In one line:** "Weave my web" is the client side of Map generation: the user types goals, the client calls the `weaveWeb` Cloud Function (generate, add a goal, reweave one goal, or expand), merges the returned `techTree` patch, charges any Grit price, and saves.
 
 ## How it works

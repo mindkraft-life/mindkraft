@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # gritAwardOnce
 
+> [!summary] In plain words
+> Pays a Grit bonus only if it has never been paid before, so milestones, masteries and quest bonuses can never be paid twice.
+>
+> **How it connects:** Used by [[Grit Currency]], [[Quests]] and the milestones in [[Streaks And Shields]].
+
 **In one line:** `gritAwardOnce(marker, amount, reason, meta, toastLabel)` pays Grit only if `grit.awarded[marker]` is not yet set, setting it first — the idempotency primitive behind streak tiers, activity mastery and quest seals, whose checks run many times.
 
 ## How it works

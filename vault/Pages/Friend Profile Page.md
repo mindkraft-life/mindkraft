@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Friend Profile Page
 
+> [!summary] In plain words
+> A pop-up card about one friend, showing their level, title, statistics and life-balance chart, with buttons to send them a gift, show or hide them on your leaderboard, or remove them.
+>
+> **How it connects:** It opens from the [[Friends Page]]. The information comes from their [[Public Profile]], and gifts are covered in [[Social Gifting]].
+
 **In one line:** Tapping a friend opens a bottom-sheet profile card built from their public profile — level, title, stats and life-balance chart — with actions to send a gift, show or hide them on your leaderboard, and remove them.
 
 ## How it works

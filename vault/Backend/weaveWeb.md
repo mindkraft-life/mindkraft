@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # weaveWeb
 
+> [!summary] In plain words
+> The server side of building your Map. It reads your goals and activities, asks the AI to design or grow the web, checks the answer, enforces the free and monthly limits, and sends the result back for the app to save.
+>
+> **How it connects:** Behind [[Map Weaving]] and the [[Tech Tree Map]]; it talks to the AI through the [[Model Adapter]].
+
 **In one line:** `weaveWeb` is an HTTPS callable that generates or grows the user's Map ("Weave my web") from their real activities and goals using the Anthropic model, enforces the server-side gates and monthly regeneration clock, and returns a `techTree` patch for the client to save.
 
 ## How it works

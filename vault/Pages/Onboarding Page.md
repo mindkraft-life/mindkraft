@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Onboarding Page
 
+> [!summary] In plain words
+> What a brand-new user sees first: three short slides explaining how habits turn into points, how life areas are organised, and how streaks work. Then they choose Quick Start (pick up to two focus areas and up to four suggested habits, which are created for them) or Build My Own (start with an empty list).
+>
+> **How it connects:** Build My Own leads to the [[First-Run Tutorial]]. The habits created here are ordinary [[Activities]], placed in the structure described in [[Dimensions And Paths]].
+
 **In one line:** A brand-new account sees a full-screen onboarding overlay — three explainer slides, then a choice between Quick Start (pick up to two focus areas and up to four suggested activities) and Build My Own (start empty with the first-activity tutorial).
 
 ## How it works

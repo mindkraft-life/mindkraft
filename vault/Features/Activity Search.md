@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Activity Search
 
+> [!summary] In plain words
+> Two search boxes for finding activities by name: one on the home screen that lets you tick things off straight from the results, and one on the Categories screen that jumps to where the activity lives.
+>
+> **How it connects:** Used on the [[My Activities Page]] and the [[Categories Page]].
+
 **In one line:** Two search overlays find activities by name — one on My Activities that lets you complete or undo straight from the results, and one on Categories that jumps to the activity inside its dimension and path.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # undoActivity
 
+> [!summary] In plain words
+> The action behind un-ticking. It removes today's last tick of an activity and takes back what that tick gave: points, Grit, streak progress and quest progress. One known gap: a Focus Window bonus is not taken back (see the [[Change Impact Guide]]).
+>
+> **How it connects:** Explained in [[Activity Completion]] and guarded by the [[Grit Clawback Test]].
+
 **In one line:** `window.undoActivity(dimIndex, pathIndex, actIndex)` removes today's most recent real completion of an activity and reverses exactly what that entry recorded — XP, Grit drip, streak grant, cycle count, quest progress and dimension XP — then wrapped by the planner, Versus and Modes.
 
 ## How it works

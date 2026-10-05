@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Retroactive History Editing
 
+> [!summary] In plain words
+> Lets you fix the last seven days: add something you did but forgot to tick, or remove a wrong entry or an automatic penalty. After a change, the app recalculates your totals, streak and levels from your history.
+>
+> **How it connects:** Done from the [[Activity History Log]] on the [[Analytics Page]]. It updates [[Streaks And Shields]], [[XP And Levels]], [[Grit Currency]] and [[Quests]], but deliberately not challenges or modes. Known issues are listed in the [[Change Impact Guide]].
+
 **In one line:** From Activity History a user can log a missed completion for any of the last 7 days ("+ Add missed") or delete a past completion or auto-penalty, after which counters, streak, dimension XP and level are recomputed from history rather than adjusted incrementally.
 
 ## How it works

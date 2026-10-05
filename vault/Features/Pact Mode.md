@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Pact Mode
 
+> [!summary] In plain words
+> A promise made together with a friend. Each of you puts in 40 Grit and chooses your own activities and targets. If you both succeed, you both get your Grit back plus a bonus; if either of you falls short, you both lose it. You get notifications when your partner is halfway or pulling ahead.
+>
+> **How it connects:** One of the [[Modes]], shared with someone from [[Friends]]. Its notifications come through [[Push Delivery]]. Unlike [[Versus Challenges]], you win or lose together.
+
 **In one line:** Pact Mode is a two-person commitment: each friend stakes 40 Grit and sets their own activities and targets (up to three, combined at least 3) for at least 5 days; if both hit their targets both get their stake back with a bonus, and if either falls short both lose it.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Stake Mode
 
+> [!summary] In plain words
+> Bet Grit on yourself: put down 25 to 100 Grit and set targets for up to three activities over 5 to 30 days. Hit every target and you get your Grit back plus a bonus (bigger for longer bets); miss any and you lose it.
+>
+> **How it connects:** One of the [[Modes]], paid with [[Grit Currency]]. [[Pact Mode]] is the two-person version.
+
 **In one line:** Stake Mode lets a user bet 25–100 Grit that they will hit completion targets on up to three activities over 5–30 days; hitting every target returns the stake plus a 30%–90% bonus that grows with length, missing any loses it all.
 
 ## How it works

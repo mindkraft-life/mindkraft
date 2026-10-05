@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # My Activities Page
 
+> [!summary] In plain words
+> The home screen. It lists all the habits and tasks you track; tapping one marks it as done and gives you points. A toolbar lets you switch between a list and a grid of tiles, change the order, open the day planner, search, and add a new activity. The bar at the very top always shows your level and how close you are to the next one.
+>
+> **How it connects:** Ticking something off is explained in [[Activity Completion]], the list and grid in [[Activity List And Grid Views]], the planner in [[Daily Planner]], and adding or editing opens the [[Activity Editor Page]].
+
 **In one line:** Activities › My Activities is the home screen of Mindkraft: a toolbar (grid/list toggle, sort, Daily Planner, search, activity count, Add) above the user's activities as list cards or grid tiles, where one tap completes an activity.
 
 ## How it works

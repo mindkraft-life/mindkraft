@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # friendRequests
 
+> [!summary] In plain words
+> Short notices saying "someone added you — add them back?", removed once they are answered.
+>
+> **How it connects:** Part of [[Friends]], shown on the [[Friends Page]], and they trigger notifications through [[Push Delivery]].
+
 **In one line:** `friendRequests/{toUid}_{fromUid}` is a "someone added you" notice: adding by code is one-sided, so this document only tells the other person and offers an add-back, which writes an `accepted` marker and then deletes the document.
 
 ## How it works

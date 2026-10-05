@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Daily Planner
 
+> [!summary] In plain words
+> A timeline for a day where you place activities or notes at certain times, once or every day. Its tick boxes simply mirror whether you really did the activity today, so ticking in the planner and ticking on the activity card always agree.
+>
+> **How it connects:** It opens inside the [[My Activities Page]], and ticking a planner slot is an ordinary [[Activity Completion]].
+
 **In one line:** The Daily Planner is an inline day timeline on My Activities where users schedule activities or free-text notes at times (once or recurring), and whose ticks are a projection of the activity's real completion count today rather than a separate checkbox.
 
 ## How it works

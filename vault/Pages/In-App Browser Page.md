@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # In-App Browser Page
 
+> [!summary] In plain words
+> When someone taps a Mindkraft link inside Instagram, Facebook, TikTok, WhatsApp and similar apps, the link opens in that app's own built-in browser, where Google sign-in and installing don't work. This screen spots that situation and tells the person how to open Mindkraft in their normal browser (on Android phones it tries to do it for them).
+>
+> **How it connects:** It replaces the [[Landing And Sign In Page]] in those cases. [[PWA Install]] covers installing once they are in a normal browser.
+
 **In one line:** When Mindkraft is opened inside an app's embedded browser (Instagram, Facebook, LinkedIn, TikTok, X, Snapchat, Pinterest, WeChat, KakaoTalk, Line, WhatsApp, Threads), an inline script replaces the landing page with instructions — or an automatic Android redirect to Chrome — because Google sign-in and PWA install do not work there.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # onReminderWrite
 
+> [!summary] In plain words
+> Whenever a reminder is created or its time changes, this server helper works out exactly when it should next go off in that person's time zone, and stops anyone from having more than five activity reminders switched on at once.
+>
+> **How it connects:** It prepares [[Reminders]] for the every-minute sender, using [[Reminder Scheduling]].
+
 **In one line:** `onReminderWrite` is a Firestore trigger on `users/{uid}/reminders/{reminderId}` that computes `nextSendAt` with real timezone maths whenever the time, zone or active flag changes (or the schedule is missing), and forces an activity reminder back off if turning it on would exceed the five-reminder cap.
 
 ## How it works

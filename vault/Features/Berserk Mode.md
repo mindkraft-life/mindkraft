@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Berserk Mode
 
+> [!summary] In plain words
+> A short, intense sprint. You choose 1 to 5 hours and the app sets a points target based on your normal pace. Hit it and you win extra points (10% for every hour you chose); miss it and you lose the same share. While it runs, the whole app turns red.
+>
+> **How it connects:** One of the [[Modes]]. It adds to or takes from your [[XP And Levels]], and the result appears in the [[Activity History Log]].
+
 **In one line:** Berserk Mode (40 Grit) sets a personal XP target for a 1–5 hour sprint; clearing it (enough completions and enough base XP) pays a bonus of 10% of the session's XP per hour chosen, and missing it costs the same percentage — and the whole app turns red while it runs.
 
 ## How it works

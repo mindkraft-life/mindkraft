@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Friends
 
+> [!summary] In plain words
+> How people connect. Everyone has a friend code; entering someone's code adds them to your friends list (up to 20) and tells them, so they can add you back. Friends can then see each other's progress, send gifts, compete on leaderboards, challenge each other and make pacts.
+>
+> **How it connects:** Managed on the [[Friends Page]]. What friends see comes from the [[Public Profile]]. Friends power [[Leaderboard Payouts]], [[Social Gifting]], [[Versus Challenges]] and [[Pact Mode]].
+
 **In one line:** Friends are added one-sidedly by sharing an `MK-XXXX` friend code (up to 20), which writes a "someone added you" notice the other person can answer by adding back; friends then appear on the Friends page, the leaderboard, friend profile cards, and the pickers for gifts, Versus and Pact.
 
 ## How it works

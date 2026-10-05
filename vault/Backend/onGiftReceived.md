@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # onGiftReceived
 
+> [!summary] In plain words
+> When a friend sends you a shield, this server helper sends you a notification saying so. Double-points boosts are meant to be a surprise, so they deliberately send nothing.
+>
+> **How it connects:** Part of [[Social Gifting]]; it uses [[Push Delivery]].
+
 **In one line:** `onGiftReceived` is a Firestore create trigger on `users/{receiverUid}/gifts/{giftId}` that pushes "<sender> sent you a shield." to the receiver — and deliberately stays silent for double-XP gifts, which are meant to be a surprise.
 
 ## How it works

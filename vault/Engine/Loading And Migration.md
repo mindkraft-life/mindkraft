@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Loading And Migration
 
+> [!summary] In plain words
+> How your data is fetched when the app opens. If the internet is down, it uses the copy kept on your phone. If nothing can be read at all, the app switches to a safe read-only mode so it can never accidentally overwrite your real account. It also quietly tidies up data saved by older versions of the app.
+>
+> **How it connects:** This is the first step of the [[App Boot Sequence]] and works hand in hand with [[Saving And The Write Invariant]].
+
 **In one line:** `loadUserData(uid)` reads the single `users/{uid}` document into `window.userData`, falls back to the Firestore cache when offline, marks the session read-only if nothing could be read, runs the one schema migration and backfills a friend code and timezone.
 
 ## How it works

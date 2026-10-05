@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Level-Up Share Card
 
+> [!summary] In plain words
+> When you level up, the app makes a picture summarising your new level and how you got there, ready to save or share on social media.
+>
+> **How it connects:** Triggered by [[XP And Levels]] and shown alongside [[Level Rewards]].
+
 **In one line:** When a user levels up, Mindkraft draws a 540×960 image card on a `<canvas>` — brand, new level, XP bar, stats for the level just finished, top activity and most active areas — prebuilt in the background so the "Share progress" button can open it instantly as an image to save or share.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # recordCompletion
 
+> [!summary] In plain words
+> Writes each tick (or penalty) into the activity's history list, which keeps the most recent 365 entries. Many features read that history.
+>
+> **How it connects:** Feeds the [[Activity History Log]], [[Streaks And Shields]] and the [[Grit Weekly Payout]].
+
 **In one line:** `recordCompletion(activity, xpEarned, isPenalty)` appends `{date, xp[, isPenalty]}` to an activity's `completionHistory`, trims it to the newest 365 entries, and returns the entry so callers can stamp what else they paid (the Grit drip) onto the same record.
 
 ## How it works

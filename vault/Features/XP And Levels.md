@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # XP And Levels
 
+> [!summary] In plain words
+> XP are the points you earn. Collecting them moves you up through levels 1 to 100, and each level needs a bit more than the one before. The bar at the top of every screen shows your level and how close you are to the next. A slider in Settings makes levelling faster or slower.
+>
+> **How it connects:** Points come mostly from [[Activity Completion]], plus quests, the Map and some modes. Reaching a level can unlock [[Level Rewards]] and a shareable picture ([[Level-Up Share Card]]). Your level also limits how many [[Activities]] you can have.
+
 **In one line:** Mindkraft accounts level from 1 to 100 on total XP, where level L needs `round(k × (2L − 1))` XP to clear (k = Level Scaling, default 8.5, adjustable 5–20 in Settings), shown in the sticky header as level, XP and a progress bar.
 
 ## How it works

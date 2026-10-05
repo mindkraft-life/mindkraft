@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Model Adapter
 
+> [!summary] In plain words
+> The single place where the server talks to the AI — a model from the company Anthropic called Claude Haiku. It sends the request, waits patiently while the answer arrives, tries once more if needed, and pulls the useful part out of the reply.
+>
+> **How it connects:** Used by the [[Quest Composer]] and [[Map Weaving]], and mentioned in the [[Privacy Policy Page]].
+
 **In one line:** functions/lib/model.js is the single place Mindkraft's Cloud Functions call the Anthropic Messages API — streamed, with an idle clock and a total clock, one retry, and 413 token-budget recovery — shared by the Quest Composer and the Map weaver.
 
 ## How it works

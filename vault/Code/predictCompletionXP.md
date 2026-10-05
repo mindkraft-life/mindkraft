@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # predictCompletionXP
 
+> [!summary] In plain words
+> Works out, before you tick, exactly how many points the tick will give (including the streak bonus and any boost), so the floating number you see always matches what you actually receive.
+>
+> **How it connects:** Part of [[Activity Completion]]; it includes boosts from the [[Grit Shop]] and from [[Social Gifting]].
+
 **In one line:** `predictCompletionXP(activity)` is the pure function that says what completing an activity right now would award — whether the streak advances, the new streak, the multiplier, and the XP before and after a Grit or gifted ×2 boost — shared by the floating preview and the real award so they can never disagree.
 
 ## How it works

@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Deploy Pipeline
 
+> [!summary] In plain words
+> How server changes go live. When the server code is updated on the main branch of the project, GitHub automatically runs its checks and, if they pass, installs the new server helpers. It never touches the app itself or the database's security rules.
+>
+> **How it connects:** It publishes the server helpers listed on [[App At A Glance]]; the app itself is published by [[Web Hosting]].
+
 **In one line:** The GitHub Actions workflow "Deploy Reminder Functions" runs on pushes to `main` that touch functions/, firebase.json, firestore.indexes.json or the workflow itself; it runs the functions unit tests, writes secrets into functions/.env, and deploys each named Cloud Function plus Firestore indexes — never security rules and never the web client.
 
 ## How it works

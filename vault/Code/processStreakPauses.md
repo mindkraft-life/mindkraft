@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # processStreakPauses
 
+> [!summary] In plain words
+> The catch-up routine that runs when you open the app (despite its name, it does not pause anything): streaks, shields, penalties, modes, the Map and the weekly Grit bonus are all brought up to date, then saved once.
+>
+> **How it connects:** Explained in [[Login-Time Processing]].
+
 **In one line:** `processStreakPauses()` is the login-time pass: Modes pre-walk, then for every activity the streak/shield walk and skip penalty, then the Modes post-walk, Map mastery evaluation and Grit login pass, followed by one save if anything changed — despite its name it pauses nothing.
 
 ## How it works

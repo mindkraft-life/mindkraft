@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # Searchable Dropdown
 
+> [!summary] In plain words
+> Turns long pick-from-a-list menus (for example, choosing one of fifty activities) into a tidier list with a search box.
+>
+> **How it connects:** Used mainly by the filters on the [[Analytics Page]].
+
 **In one line:** `mkEnhanceSelect(sel)` wraps a native `<select>` in a styled, searchable picker while leaving the `<select>` in the DOM as the value holder, kept in sync by a `MutationObserver`, so existing `.value` reads and `onchange` handlers keep working.
 
 ## How it works

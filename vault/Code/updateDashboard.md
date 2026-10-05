@@ -5,6 +5,11 @@ last_verified: 2026-10-05
 ---
 # updateDashboard
 
+> [!summary] In plain words
+> Refreshes what you see after any change: the level and progress bar at the top of the screen, and whichever screen is currently open.
+>
+> **How it connects:** Runs after [[Activity Completion]] and most other changes; see [[XP And Levels]].
+
 **In one line:** `updateDashboard()` refreshes the sticky header (level, XP, progress bar, XP-to-next), prunes old ghost-XP entries, and re-renders only the panels of the currently visible tab — it runs after nearly every state change (about 30 call sites).
 
 ## How it works

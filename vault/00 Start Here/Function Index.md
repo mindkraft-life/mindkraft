@@ -4,6 +4,11 @@ last_verified: 2026-10-05
 ---
 # Function Index
 
+> [!summary] In plain words
+> This page is a lookup table for the people who build the app. The program is made of many small named pieces, and this table says which vault page explains each one. You don't need it to understand the app; it exists so a builder can go from a name they saw in the program to the right explanation.
+>
+> **How it connects:** Builders use it alongside [[Home]]. If you are reading to understand the app rather than build it, the Pages and Features groups on [[Home]] are a better starting point.
+
 **In one line:** Every function defined in the Mindkraft web client (app.js, the inline scripts in index.html, sw.js) and server (functions/index.js, functions/lib/*.js, scripts/send-reminders.js) — 1442 names — mapped alphabetically to the vault note that documents the code around it, plus any other note that names it under "Key functions".
 
 How to read it: **Note** is where the function lives conceptually (its feature, page, engine mechanic, Cloud Function or — for hub functions — its own Code note). **Also in** lists other notes that mention it. Inner helpers (`close`, `card`, `tick`, …) appear under every note whose code defines one with that name. `window.X` handlers are listed by their bare name. Test-file helpers are not listed; see the Tests notes.
