@@ -3,3 +3,8 @@ node_modules/
 # Written by the deploy workflow from GitHub secrets — VAPID and API keys.
 # Must never reach the repository.
 functions/.env
+
+# Obsidian per-device state for the documentation vault (vault/ is docs only).
+vault/.obsidian/workspace*.json
+vault/.obsidian/cache
+vault/.trash/
