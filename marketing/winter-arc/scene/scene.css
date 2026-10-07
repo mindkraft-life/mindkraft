@@ -1,0 +1,110 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Scene stylesheet — layered on top of the app's style.css. It only lays
+   out the stage and the video-only layers (snow, captions, kinetic type);
+   the Mindkraft components keep the app's styling untouched.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Frames are captured one at a time, so nothing may animate on its own:
+   every motion in the video is set explicitly per frame from t. */
+*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent; }
+
+html, body { margin: 0; width: 432px; height: 768px; overflow: hidden; background: #1a1a1a; }
+body { background-attachment: scroll; -webkit-font-smoothing: antialiased; }
+
+#stage {
+  position: absolute; inset: 0; overflow: hidden;
+  background-color: var(--color-bg-primary);
+  background-image:
+    radial-gradient(ellipse 100% 55% at var(--gax, 18%) var(--gay, 18%), var(--color-bg-glow-a) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 50% 50%, var(--color-bg-glow-m) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 60% at var(--gbx, 82%) var(--gby, 82%), var(--color-bg-glow-b) 0%, transparent 60%);
+}
+.layer { position: absolute; inset: 0; pointer-events: none; }
+.abs { position: absolute; left: 0; top: 0; }
+.cam { position: absolute; left: 0; top: 0; width: 432px; height: 768px; transform-origin: 0 0; }
+.scene { position: absolute; inset: 0; }
+
+/* Ambient glow that breathes with the music */
+#glow { mix-blend-mode: screen; }
+
+/* ── Captions ─────────────────────────────────────────────────────────── */
+#captions { z-index: 50; }
+.cap {
+  position: absolute; left: 24px; right: 24px; top: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start;
+  column-gap: 0.26em; row-gap: 2px;
+  font-family: 'Inter', sans-serif; font-size: 23px; font-weight: 800; line-height: 1.22;
+  letter-spacing: -0.02em; text-align: center; color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.6);
+}
+.cw { position: relative; display: inline-block; white-space: nowrap; will-change: transform, opacity; }
+.cw.key { background: linear-gradient(135deg, #ffffff 20%, var(--color-progress) 95%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-shadow: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7)); }
+.cw.neg { color: #e38c9c; }
+.cw.brand { background: linear-gradient(135deg, #ffffff 25%, var(--color-progress)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-shadow: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7)); }
+/* The app's indicator primitive: a glowing underline marks the spoken word */
+.cap-ind {
+  position: absolute; height: 3px; border-radius: 2px; top: 0; left: 0; width: 10px;
+  background: linear-gradient(90deg, transparent, var(--color-progress) 20%, var(--color-progress) 80%, transparent);
+  box-shadow: 0 0 10px rgba(90,159,212,0.85), 0 0 22px rgba(90,159,212,0.45);
+}
+
+/* ── Kinetic type ─────────────────────────────────────────────────────── */
+.kt { position: absolute; font-family: 'Inter', sans-serif; white-space: nowrap; transform-origin: 50% 50%; }
+.kt-xl { font-size: 74px; font-weight: 900; letter-spacing: -0.045em; line-height: 0.95; }
+.kt-grad { background: linear-gradient(135deg, #ffffff 25%, var(--color-progress)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.kt-ice { background: linear-gradient(160deg, #ffffff 10%, #cfe6f7 40%, #5a9fd4 90%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.kicker { position: absolute; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255,255,255,0.44); white-space: nowrap; }
+
+/* ── Component placement helpers ──────────────────────────────────────── */
+.mk-cardwrap { position: absolute; width: 352px; }
+.mk-cardwrap .activity-item { margin-bottom: 0; }
+.mk-check { display: inline-flex; color: #fff; }
+.mk-sheenwrap { position: absolute; inset: 0; border-radius: 11px; overflow: hidden; pointer-events: none; }
+.mk-sheen { position: absolute; top: -10px; bottom: -10px; left: 0; width: 70px; opacity: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.10) 45%, rgba(190,225,255,0.16) 50%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0)); }
+.mk-header { position: absolute !important; top: 0; left: 0; width: 432px; }
+.mk-float { position: absolute; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; text-shadow: 0 0 12px rgba(74,222,128,0.45); white-space: nowrap; }
+.mk-pill { position: absolute !important; top: 0; left: 0; opacity: 1; transform: none; }
+.mk-msgtoast { position: absolute !important; left: 0; top: 0; width: 360px; opacity: 1; transform: none; }
+.mk-ripple { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 2px solid rgba(90,159,212,0.9); box-shadow: 0 0 14px rgba(90,159,212,0.6); }
+.mk-lvlcard { position: absolute !important; width: 300px; }
+.mk-cal { position: absolute; width: 360px; margin: 0; }
+.mk-cal .calendar-month-grid { margin-top: 8px; }
+.mk-chartcard { position: absolute; width: 360px; margin: 0; }
+.mk-chartbox { position: relative; }
+.mk-chartbox canvas { width: auto !important; height: auto !important; display: block; }
+.mk-hist { position: absolute; width: 360px; margin: 0; overflow: hidden; }
+.mk-hist-head { pointer-events: none; }
+.mk-hist-list { position: relative; }
+.mk-brand { position: absolute; display: flex; flex-direction: column; align-items: center; text-align: center; width: 432px; }
+.mk-brand .lp-logo-ring { margin-bottom: 18px; }
+.mk-tag { color: var(--color-text-secondary); }
+.mk-lpchips { margin-top: 18px; }
+.mk-editor { position: absolute !important; width: 372px; max-height: none !important; overflow: visible !important; margin: 0 !important; transform-origin: 50% 50%; }
+.mk-input { position: relative; display: flex; align-items: center; min-height: 42px; }
+.mk-typed { white-space: pre; }
+.mk-ph { color: var(--color-placeholder); position: absolute; left: 14px; }
+.mk-caret { display: inline-block; width: 1.5px; height: 18px; margin-left: 1px; background: var(--color-progress); }
+.mk-select { display: flex; align-items: center; justify-content: space-between; min-height: 42px; }
+.mk-chev { width: 14px; height: 14px; color: var(--color-text-secondary); }
+.mk-tabs { position: absolute; }
+.mk-ind {
+  position: absolute; bottom: 2px; height: 2px; border-radius: 1px; left: 0; width: 10px;
+  background: linear-gradient(90deg, transparent, var(--color-progress) 25%, var(--color-progress) 75%, transparent);
+  box-shadow: 0 0 10px rgba(90,159,212,0.7), 0 0 22px rgba(90,159,212,0.35);
+}
+.mk-tabs .an-mode-tab { font-size: 20px; padding: 2px 16px 12px; }
+.mk-stat { position: absolute; width: 172px; }
+.mk-stat .an-stat-card { margin: 0; }
+
+/* Character token: avatar + level, rides the arc */
+.mk-token { position: absolute; width: 0; height: 0; }
+.mk-token .profile-avatar-btn { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; }
+.mk-token .mk-lvlwrap { position: absolute; left: -40px; top: -96px; width: 80px; text-align: center; }
+
+/* Frost overlay canvas sits above content but below captions */
+#frost { z-index: 40; }
+#flash { z-index: 45; }
+#vignette { z-index: 44; background: radial-gradient(ellipse 110% 85% at 50% 45%, transparent 62%, rgba(0,0,0,0.42) 100%); }
+
+/* Debug timecode (off in renders) */
+#tc { position: absolute; right: 6px; top: 4px; z-index: 99; font: 600 9px Inter, sans-serif; color: rgba(255,255,255,0.5); display: none; }

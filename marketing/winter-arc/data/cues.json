@@ -1,0 +1,22 @@
+{
+  "_": "Shared beat sheet. Times are seconds into the VO (word onsets from data/words.json). The scene and the score both read this file, so a retime here moves picture and music together.",
+  "duration": 73.5,
+  "bpm": 120,
+  "gridPhase": 0.21,
+  "cues": {
+    "tenDays": 0.48, "everyone": 1.68, "instagram": 2.24, "winterArc": 3.28, "andYours": 4.16, "fail": 4.96, "understand": 6.08, "this": 6.56,
+    "storytelling": 7.20, "anArc": 8.48, "arcWord": 8.72, "changes": 10.00, "character1": 10.72, "within": 11.52,
+    "butTake": 12.48, "theCharacter": 14.40, "neverSees": 15.20, "ownArc": 16.24,
+    "theyLive": 16.96, "day1": 17.67, "day2": 18.95, "day3": 20.71, "day4": 21.91,
+    "onlyAudience": 22.71, "seesArc": 23.83, "thatToo": 25.03, "endOfJourney": 26.07, "longPeriod": 26.87, "r3m": 27.27, "r6m": 27.51, "r1y": 27.99,
+    "soFor": 28.95, "needToBe": 31.03, "both": 31.75, "character": 32.47, "audience": 33.43,
+    "beingCharacter": 34.95, "something": 36.31, "everyDay": 37.35, "bePurposeful": 38.23, "purposeful": 38.47, "ownDefinition": 39.27, "save": 40.10, "notLiving": 40.47, "template": 41.35, "instagram2": 41.99,
+    "beingAudience": 43.19, "means": 44.31, "record": 45.11, "journey": 46.15,
+    "memory": 46.95, "terrible": 47.75, "because": 49.03, "onlyRemember": 50.31, "quit": 51.75, "forgetting": 52.55, "showedUp": 53.75,
+    "thisIsWhere": 54.91, "mindkraft": 55.71, "canHelp": 56.35,
+    "here": 57.23, "define": 57.95, "log1": 59.23, "log2": 59.71, "log3": 60.19, "liveUp": 60.91,
+    "byTheTime": 61.47, "newYear": 62.19, "year": 62.35, "arrives": 62.59,
+    "stepBack": 63.71, "look": 64.59, "shape": 65.07, "ownArc2": 65.95,
+    "soWhats": 67.31, "winter3": 68.27, "goingTo": 68.91, "lookLike": 69.31, "endCard": 69.90
+  }
+}

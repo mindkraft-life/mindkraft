@@ -1,13 +1,14 @@
 # GitHub Pages (Jekyll) build settings. This repository is published by
 # GitHub Pages from its root (see CNAME → mindkraft.life). The only job of
-# this file is to keep documentation out of the public site:
+# this file is to keep non-app material out of the public site:
 #   vault/     — Obsidian documentation vault, not part of the app
+#   marketing/ — sources for marketing videos, not part of the app
 #   CLAUDE.md  — contributor guidance, not part of the app
 #
 # Setting `exclude` REPLACES the default list rather than adding to it, so
 # the defaults GitHub Pages applies without this file are restated first.
 # With them, the published site is byte-for-byte what it was before this
-# file existed, minus the two entries at the bottom.
+# file existed, minus the entries at the bottom.
 exclude:
   - Gemfile
   - Gemfile.lock
@@ -18,4 +19,5 @@ exclude:
   - vendor/ruby/
   - CNAME
   - vault
+  - marketing
   - CLAUDE.md

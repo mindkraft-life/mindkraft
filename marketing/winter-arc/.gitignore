@@ -1,0 +1,4 @@
+# Build outputs and the npm-fetched webfonts (see tools/fetch-assets.sh)
+.cache/
+out/
+__pycache__/
