@@ -39,6 +39,7 @@ window.sceneReady = load().then(({ words, phrases, C, duration }) => {
   const capLayer = h('div', 'layer'); capLayer.id = 'captions'; stage.appendChild(capLayer);
   const tc = h('div', ''); tc.id = 'tc'; stage.appendChild(tc);
   if (location.hash.includes('tc')) tc.style.display = 'block';
+  if (location.hash.includes('nocaps')) capLayer.style.display = 'none';   // clean version (captions via .srt)
 
   const fx = { frost, flash, glow, world, stage };
   const scenes = buildScenes(world, C, fx);

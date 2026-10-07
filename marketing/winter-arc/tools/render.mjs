@@ -4,6 +4,7 @@
 //
 //   node tools/render.mjs video  --out out/silent.mp4 [--fps 30] [--from 0] [--to END] [--workers 4]
 //   node tools/render.mjs stills --out out/stills --at 1.2,3.4,5.6
+//   add --nocaps to either for a version without burned-in captions
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
@@ -21,7 +22,7 @@ async function openPage() {
   const page = await browser.newPage({ viewport: { width: 432, height: 768 }, deviceScaleFactor: 2.5 });
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
   page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.error('CONSOLE', m.text()); });
-  await page.goto(SCENE_URL(PORT), { waitUntil: 'load' });
+  await page.goto(SCENE_URL(PORT) + (args.includes('--nocaps') ? '#nocaps' : ''), { waitUntil: 'load' });
   await page.evaluate(() => window.sceneReady);
   return page;
 }
