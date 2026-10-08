@@ -14,13 +14,13 @@ PY="${PY:-python3}"
 WORKERS="${WORKERS:-4}"
 mkdir -p out/audio
 ./tools/fetch-assets.sh
-# 60 fps render, then pairs of frames are blended down to 30 fps: a 180°
-# shutter, i.e. natural motion blur on every camera move.
+# 60 fps master (kept for 60 fps platforms); the delivered cut takes every
+# other frame for a crisp 30 fps. Fast moves carry their own blur in the scene.
 node tools/render.mjs video --out out/silent60.mp4 --fps 60 --workers "$WORKERS"
 "$PY" audio/score.py out/audio
 "$PY" audio/mix.py out/audio out/audio/master.wav
 ffmpeg -y -loglevel error -i out/silent60.mp4 -i out/audio/master.wav \
-  -map 0:v -map 1:a -vf "tmix=frames=2,fps=30" -c:v libx264 -preset slow -crf 16 -profile:v high -pix_fmt yuv420p \
+  -map 0:v -map 1:a -vf "fps=30" -c:v libx264 -preset slow -crf 16 -profile:v high -pix_fmt yuv420p \
   -x264-params aq-mode=3:deblock=-1,-1 -r 30 -c:a aac -b:a 320k -ar 48000 -movflags +faststart -shortest \
   out/winter-arc.mp4
 python3 tools/srt.py out/winter-arc.srt

@@ -13,7 +13,7 @@ caches it.
 | Piece | What it is |
 |---|---|
 | `scene/` | The animation: an HTML page that loads the app's own `style.css`, Inter and Phosphor, and rebuilds Mindkraft components with the app's markup (activity cards, sticky header, XP Over Time chart, calendar, Activity History, editor, toasts, level-up card, landing logo). `window.renderFrame(t)` draws any frame as a pure function of time. |
-| `tools/render.mjs` | Headless Chromium renders frames in parallel (`432×768` CSS @ 2.5× → 1080×1920) and pipes them to ffmpeg. The build renders at 60 fps and blends frame pairs down to 30 fps (a 180° shutter), so every camera move carries natural motion blur. |
+| `tools/render.mjs` | Headless Chromium renders frames in parallel (`432×768` CSS @ 2.5× → 1080×1920) and pipes them to ffmpeg. The build renders a 60 fps master and delivers a crisp 30 fps cut from it (every other frame; whips and dives carry their own blur in the scene). A section can be re-rendered on its own with `--from/--to` and spliced back in. |
 | `audio/score.py` | The music and sound design, synthesised from oscillators, noise and filters (nothing sampled). D minor, on a tempo map: each section keeps a steady ~120 BPM grid anchored on the words that matter, so "winter", "fail", "Mindkraft", "step back", "arc" and the end card land on downbeats. |
 | `audio/mix.py` | VO clean-up (high-pass, presence, compression, soft expander, plosive limiter), VO-keyed ducking plus a VO-keyed dynamic EQ that carves the speech band out of the music only while the voice speaks, loudness-matched stems, −14 LUFS / −1 dBTP master. |
 | `data/words.json` | Word onsets/offsets for the VO (speech recognition, cross-checked with a second model). |

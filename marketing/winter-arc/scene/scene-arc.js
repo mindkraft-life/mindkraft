@@ -209,7 +209,7 @@ export function sceneArc(C, fx) {
         const rot = lerp(-slope * 0.8, 0, pb);
         // S6: the whole card moves down and shrinks
         const s6 = E.inOutCubic(prog(t, C.soFor, 0.7));
-        const s6s = lerp(1, 0.84, s6), s6y = lerp(0, 168, s6);
+        const s6s = lerp(1, 0.76, s6), s6y = lerp(0, 96, s6);   // chart sits between the card and the captions
         // whip out to the left at the end of S6
         const whip = E.inExpo(prog(t, C.beingCharacter - 0.32, 0.36));
         const whipX = 520 * whip;
