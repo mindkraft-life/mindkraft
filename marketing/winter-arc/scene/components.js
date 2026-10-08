@@ -45,6 +45,7 @@ export function activityCard({ name, xp = 20, streak = 0, dim = null, risk = fal
                 <circle class="act-ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="3" stroke-dasharray="${RING_CIRC}" stroke-dashoffset="${RING_CIRC}" transform="rotate(-90 24 24)"/>
               </svg>
               <div class="act-ring-label"><span class="mk-check">${CHECK}</span></div>
+              <div class="mk-ringfx"><div class="mk-ripple mk-ringrip"></div><canvas class="mk-ringburst"></canvas></div>
             </div>
           </div>
         </div>
@@ -58,6 +59,21 @@ export function activityCard({ name, xp = 20, streak = 0, dim = null, risk = fal
     name: q('.activity-name'), xp: q('.card-xp'), streak: q('.card-streak'), streakN: q('.mk-streak-n'),
     risk: q('.card-atrisk'), done: q('.act-ring-done-fill'), arc: q('.act-ring-fill'), bg: q('.act-ring-bg'),
     check: q('.mk-check'), ringWrap: q('.act-ring-wrap'), sheen: q('.mk-sheen'),
+    rip: q('.mk-ringrip'), burstCv: q('.mk-ringburst'),
+  };
+  // Tap ripple and completion sparkle live inside the ring itself, so they
+  // follow every transform the card goes through and stay centred on it.
+  const BS = 180, dpr = window.devicePixelRatio || 1;
+  r.burstCv.width = BS * dpr; r.burstCv.height = BS * dpr;
+  css(r.burstCv, { width: BS + 'px', height: BS + 'px' });
+  const bctx = r.burstCv.getContext('2d'); bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  r.setRipple = (p) => css(r.rip, { opacity: (p > 0 && p < 1 ? 1 - p : 0).toFixed(3), transform: `scale(${lerp(1, 7, E.outCubic(clamp(p, 0, 1))).toFixed(3)})` });
+  r.setBurst = (p, seed = 0) => {
+    const on = p > 0 && p < 1;
+    css(r.burstCv, { display: on ? '' : 'none' });
+    if (!on) return;
+    bctx.clearRect(0, 0, BS, BS);
+    burst(bctx, BS / 2, BS / 2, p, seed);
   };
   /** A light sweep across the card, p: 0..1 (hidden outside). */
   r.setSheen = (p) => css(r.sheen, { opacity: p > 0 && p < 1 ? '1' : '0', transform: `translateX(${lerp(-140, 480, E.inOutSine(clamp(p, 0, 1))).toFixed(1)}px) skewX(-18deg)` });
@@ -179,7 +195,7 @@ export function levelUpCard(level) {
 // ── Landing logo (lp-logo-ring + lp-brand-name) ──────────────────────────
 export function brandLockup({ tagline = 'Gamify your life.', chips = false } = {}) {
   const el = h('div', 'mk-brand', `
-    <div class="lp-logo-ring"><div class="lp-logo-pulse"></div><div class="lp-logo-emoji"><i class="ph-bold ph-brain"></i></div></div>
+    <div class="lp-logo-ring"><div class="lp-logo-pulse"></div><div class="lp-logo-emoji mk-appicon-wrap"><img class="mk-appicon" src="../../../icon-192.svg" alt="Mindkraft"></div></div>
     <div class="lp-brand-name">Mindkraft</div>
     <div class="lp-tagline mk-tag">${tagline}</div>
     ${chips ? `<div class="lp-pills mk-lpchips"><span class="lp-pill mk-lpchip"><i class="ph-bold ph-lightning mk-ico-lead" aria-hidden="true"></i>XP &amp; Levels</span><span class="lp-pill mk-lpchip"><i class="ph-bold ph-fire mk-ico-lead" aria-hidden="true"></i>Streaks</span><span class="lp-pill mk-lpchip"><i class="ph-bold ph-trophy mk-ico-lead" aria-hidden="true"></i>Challenges</span></div>` : ''}`);

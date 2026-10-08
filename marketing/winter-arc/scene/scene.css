@@ -76,7 +76,13 @@ body { background-attachment: scroll; -webkit-font-smoothing: antialiased; }
 .mk-hist-head { pointer-events: none; }
 .mk-hist-list { position: relative; }
 .mk-brand { position: absolute; display: flex; flex-direction: column; align-items: center; text-align: center; width: 432px; }
-.mk-brand .lp-logo-ring { margin-bottom: 18px; }
+.mk-brand .lp-logo-ring { margin-bottom: 18px; width: 112px; height: 112px; }
+/* The real app icon (icon-192.svg) as an app-icon tile */
+.mk-appicon-wrap { width: 96px; height: 96px; border-radius: 23px; overflow: hidden; filter: none !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 10px 30px rgba(0,0,0,0.55), 0 0 34px rgba(90,159,212,0.45); }
+.mk-appicon { display: block; width: 100%; height: 100%; }
+.mk-ringfx { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.mk-ringfx .mk-ripple { left: 0; top: 0; opacity: 0; }
+.mk-ringburst { position: absolute; left: -90px; top: -90px; display: none; }
 .mk-tag { color: var(--color-text-secondary); }
 .mk-lpchips { margin-top: 18px; }
 .mk-editor { position: absolute !important; width: 372px; max-height: none !important; overflow: visible !important; margin: 0 !important; transform-origin: 50% 50%; }

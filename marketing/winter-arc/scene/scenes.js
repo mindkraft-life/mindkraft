@@ -20,26 +20,27 @@ export function buildScenes(world, C, fx) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// S1 · HOOK  0.00 → 7.20
-// "Ten days ago, everyone on Instagram was starting a winter arc, and yours
+// S1 · HOOK  0.00 → 8.72
+// "Few days ago, everyone on Instagram was starting a winter arc, and yours
 //  will fail if you don't understand this."
 // ═════════════════════════════════════════════════════════════════════════
-const TRENDS = ['Cold plunge', '5 AM wake up', '75 Hard', 'Gym · push day', 'No sugar', 'Read 10 pages', 'Journal', 'Run 5K', 'Meditate', 'No phone after 9', 'Skincare', '10k steps', 'Learn Spanish', 'Stretch', 'Drink 3L water', 'Deep work 2h', 'Gratitude list', 'No junk food', 'Sleep by 10:30', 'Pushups ×50', 'Study 1h', 'Walk outside', 'Plan tomorrow', 'Yoga', 'Protein 150g', 'Guitar practice', 'No alcohol', 'Call family', 'Clean room', 'Code 1h', 'Sauna', 'Cook at home', 'Cardio 30 min', 'Read the news', 'Floss'];
+const TRENDS = ['Cold plunge', '5 AM wake up', '75 Hard', 'Gym · push day', 'No sugar', 'Run 10K', 'Journal', 'Run 5K', 'Meditate', 'No phone after 9', 'Skincare', '10k steps', 'Learn Spanish', 'Stretch', 'Drink 3L water', 'Deep work 2h', 'Gratitude list', 'No junk food', 'Sleep by 10:30', 'Pushups ×50', 'Study 1h', 'Hike 5 miles', 'Plan tomorrow', 'Yoga', 'Protein 150g', 'Guitar practice', 'No alcohol', 'Ice bath', 'Clean room', 'Code 1h', 'Sauna', 'Cook at home', 'Cardio 30 min', 'Read the news', 'Floss'];
 
 function sceneHook(C, fx) {
   const el = h('div', 'scene');
 
-  // ── Calendar: count back ten days ──────────────────────────────────────
+  // ── Calendar: count back a few days, to October 1 ─────────────────────
   const calWrap = h('div', 'abs', '', 'left:0;top:0;width:432px;height:768px;transform-origin:0 0;');
   const cal = calendarCard();
   css(cal.el, { left: '36px', top: '150px' });
   calWrap.appendChild(cal.el); el.appendChild(calWrap);
   const kick = h('div', 'kicker', 'Winter arc · Day 1', 'color:var(--color-progress);left:0;width:432px;text-align:center;top:118px;');
   el.appendChild(kick);
-  const seq = [[9, 7], [9, 6], [9, 5], [9, 4], [9, 3], [9, 2], [9, 1], [8, 30], [8, 29], [8, 28], [8, 27]];
-  const stepT0 = C.tenDays + 0.08, stepDt = 0.082;
-  const fillT = stepT0 + stepDt * 10 + 0.08;
-  let target = null;   // centre of Sep 27, measured after layout
+  const seq = [8, 7, 6, 5, 4, 3, 2, 1];          // today → Oct 1, Day 1 of the arc
+  const STEPS = seq.length - 1;
+  const stepT0 = C.fewDays + 0.08, stepDt = 0.088;
+  const fillT = stepT0 + stepDt * STEPS + 0.08;
+  let target = null;   // centre of Oct 1, measured after layout
 
   // ── The wall: everyone's Day 1 ─────────────────────────────────────────
   const COLS = 5, ROWS = 12, CW = 300, CH = 64, GX = 22, GY = 16;
@@ -76,15 +77,15 @@ function sceneHook(C, fx) {
     t0: 0, t1: C.storytelling + 0.6, el,
     update(t) {
       // Calendar
-      const calOn = t < 2.15;
+      const calOn = t < C.everyone + 0.47;
       show(calWrap, calOn); show(kick, calOn);
       if (calOn) {
-        const idx = t < stepT0 ? 0 : Math.min(10, 1 + Math.floor((t - stepT0) / stepDt));
-        const [m, d] = seq[idx];
-        cal.setMonth(2026, m);
-        if (!target) { cal.setMonth(2026, 8); const c27 = cal.map[27]; target = { x: 36 + c27.offsetLeft + c27.offsetWidth / 2, y: 150 + c27.offsetTop + c27.offsetHeight / 2 }; cal.setMonth(2026, m); }
+        const idx = t < stepT0 ? 0 : Math.min(STEPS, 1 + Math.floor((t - stepT0) / stepDt));
+        const d = seq[idx];
+        cal.setMonth(2026, 9);
+        if (!target) { const c1 = cal.map[1]; target = { x: 36 + c1.offsetLeft + c1.offsetWidth / 2, y: 150 + c1.offsetTop + c1.offsetHeight / 2 }; }
         Object.keys(cal.map).forEach(k => cal.paint(+k, { today: +k === d && t < fillT + 0.05 }));
-        if (m === 8 && t >= fillT) cal.paint(27, { a: E.outCubic(prog(t, fillT, 0.18)), today: false, gold: 0 });
+        if (t >= fillT) cal.paint(1, { a: E.outCubic(prog(t, fillT, 0.18)), today: false, gold: 0 });
         const appear = E.outExpo(prog(t, 0.0, 0.55));
         const dive = E.inExpo(prog(t, C.everyone - 0.08, 0.5));
         const s = lerp(0.9, 1, appear) * lerp(1, 9, dive);

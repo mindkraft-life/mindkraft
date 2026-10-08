@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════
 // S13–S14 · THE SHAPE OF YOUR ARC
 // S13 63.71 → 67.31  "…step back and look at the shape of your own arc."
-//                    — pull back to XP Over Time, Oct 7 → Jan 1, line draws
+//                    — pull back to XP Over Time, Oct 1 → Jan 1, line draws
 // S14 67.31 → 69.90  "So what's your winter arc going to look like?"
 //                    — back to today: dashed possible arcs (overlay style)
 // End 69.90 → 73.50  Mindkraft lockup + call to action
@@ -9,17 +9,18 @@
 import { W, H, clamp, lerp, prog, E, tw, kf, env, pulse, rnd, rndr, h, css, show, fmt, hiCanvas, clearCanvas } from './engine.js';
 import { COL, CHART_LINE, chartCard, drawChart, statTile, brandLockup } from './components.js';
 
-// Oct 7 → Jan 1: 87 days of a winter arc that compounds.
+// Oct 1 → Jan 1: 93 days of a winter arc that compounds.
+const DAYS = 92;
 function winterData() {
   const pts = []; let v = 0;
-  for (let d = 0; d <= 86; d++) {
-    const skip = [9, 17, 24, 41, 63].includes(d);
-    const daily = skip ? 0 : Math.round((38 + 70 * Math.pow(d / 86, 1.35)) * rndr(d * 1.9 + 3, 0.85, 1.15));
+  for (let d = 0; d <= DAYS; d++) {
+    const skip = [5, 14, 26, 47, 69].includes(d);
+    const daily = skip ? 0 : Math.round((38 + 70 * Math.pow(d / DAYS, 1.35)) * rndr(d * 1.9 + 3, 0.85, 1.15));
     v += daily; pts.push({ x: d, v });
   }
   return pts;
 }
-const dateLabel = (d) => { const dt = new Date(2026, 9, 7 + d); return `${dt.getMonth() + 1}/${dt.getDate()}`; };
+const dateLabel = (d) => { const dt = new Date(2026, 9, 1 + d); return `${dt.getMonth() + 1}/${dt.getDate()}`; };
 
 export function sceneFinale(C, fx) {
   const out = [];
@@ -72,23 +73,23 @@ export function sceneFinale(C, fx) {
       css(cardWrap, { transformOrigin: '180px 58px' });
       // the line draws: Oct 7 → Jan 1
       const draw = E.inOutSine(prog(t, C.look - 0.35, C.ownArc2 + 0.25 - (C.look - 0.35)));
-      const upto = 86 * draw;
+      const upto = DAYS * draw;
       const shapeGlow = env(t, C.shape - 0.1, C.soWhats + 0.4, 0.4, 0.4);
       const fade = lerp(1, 0.22, question);
-      const view = { x0: 0, x1: 86, v0: 0, v1: total * 1.08 };
+      const view = { x0: 0, x1: DAYS, v0: 0, v1: total * 1.08 };
       const series = [{ pts: data, color: COL.blue, fill: 'rgba(74,124,158,0.35)', width: 2.5 + 0.8 * shapeGlow, glow: 0.7 + 1.1 * shapeGlow, upto, head: draw > 0 && draw < 1 ? 0.9 : 0.9 * (1 - question), alpha: fade }];
       // S14: today again — a single point and the dashed possibilities
       const fut = [];
       if (question > 0) {
         futures.forEach((F, i) => {
           const p = E.inOutCubic(prog(t, C.winter3 - 0.1 + i * 0.22, 1.1));
-          const pts = []; for (let d = 0; d <= 86; d += 2) pts.push({ x: d, v: total * F.f(d / 86) });
-          fut.push({ pts, color: F.color, dashed: true, width: 2, upto: 86 * p, head: p > 0 && p < 1 ? 0.45 : 0, headColor: F.color, alpha: 1 - prog(t, C.endCard - 0.2, 0.4) });
+          const pts = []; for (let d = 0; d <= DAYS; d += 2) pts.push({ x: d, v: total * F.f(d / DAYS) });
+          fut.push({ pts, color: F.color, dashed: true, width: 2, upto: DAYS * p, head: p > 0 && p < 1 ? 0.45 : 0, headColor: F.color, alpha: 1 - prog(t, C.endCard - 0.2, 0.4) });
         });
       }
       const m = drawChart(cv, [...series, ...fut], view, {
         rect: RECT, gridAlpha: 1,
-        xLabels: [0, 17, 35, 52, 69, 86].map(d => [d, dateLabel(d)]),
+        xLabels: [0, 18, 36, 55, 73, DAYS].map(d => [d, dateLabel(d)]),
       });
       // start dot for "today"
       if (question > 0) {
@@ -98,8 +99,8 @@ export function sceneFinale(C, fx) {
         ctx.beginPath(); ctx.arc(X, Y, 5 * a, 0, 6.283); ctx.fill(); ctx.restore();
       }
       // level badge rides the head; gold trace when the arc completes
-      const head = data[Math.min(86, Math.floor(upto))];
-      const [hx, hy] = [m.px(Math.min(upto, 86)), m.py(head ? lerp(head.v, (data[Math.min(86, Math.floor(upto) + 1)] || head).v, upto - Math.floor(upto)) : 0)];
+      const head = data[Math.min(DAYS, Math.floor(upto))];
+      const [hx, hy] = [m.px(Math.min(upto, DAYS)), m.py(head ? lerp(head.v, (data[Math.min(DAYS, Math.floor(upto) + 1)] || head).v, upto - Math.floor(upto)) : 0)];
       const lv = Math.round(14 + 17 * draw);
       lvl.querySelectorAll('text').forEach(n => { if (n.textContent !== String(lv)) n.textContent = String(lv); });
       const lvA = env(t, C.look - 0.2, C.soWhats + 0.3, 0.3, 0.35) * (1 - endIn);
@@ -138,7 +139,7 @@ export function sceneFinale(C, fx) {
         css(brand.ring, { transform: `scale(${E.outBack(prog(t, C.endCard, 0.5)).toFixed(4)})` });
         css(brand.pulse, { transform: `scale(${(1 + 0.18 * Math.sin((t - C.endCard) * 2.2)).toFixed(4)})`, opacity: (0.6 + 0.4 * Math.sin((t - C.endCard) * 2.2)).toFixed(3) });
         css(brand.icon, { transform: `translateY(${(-4 * Math.sin((t - C.endCard) * 2.1)).toFixed(2)}px)` });
-        brand.chips.forEach((c, i) => { const a = E.outBack(prog(t, C.endCard + 0.5 + i * 0.1, 0.45)); css(c, { opacity: clamp(a * 1.5, 0, 1).toFixed(3), transform: `translateY(${lerp(10, 0, a).toFixed(1)}px)`, display: 'inline-flex' }); });
+        brand.chips.forEach((c, i) => { const a = E.outBack(prog(t, C.endCard + 0.5 + i * 0.1, 0.45)); css(c, { opacity: clamp(a * 1.5, 0, 1).toFixed(3), transform: `translateY(${lerp(10, 0, a).toFixed(1)}px)` }); });
         const ct = E.outCubic(prog(t, C.endCard + 0.9, 0.6));
         css(cta, { opacity: ct.toFixed(3), transform: `translateY(${lerp(14, 0, ct).toFixed(1)}px)`, filter: `blur(${((1 - ct) * 6).toFixed(2)}px)` });
         const u = E.outCubic(prog(t, C.endCard + 1.25, 0.6));

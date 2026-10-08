@@ -12,7 +12,7 @@
 // S6 28.95 → 35.10  "…be both the character and the audience."
 // Tabs 31.0 → 47.2  Character | Audience — the indicator primitive
 // ════════════════════════════════════════════════════════════════════════
-import { W, H, clamp, lerp, prog, E, tw, kf, env, pulse, rnd, rndr, noise1, h, css, show, fmt, hiCanvas, clearCanvas } from './engine.js';
+import { W, H, clamp, lerp, prog, E, tw, kf, env, pulse, rnd, rndr, noise1, h, css, show, fmt, hiCanvas, clearCanvas, layoutPos, layoutCenter } from './engine.js';
 import { COL, activityCard, chartCard, drawChart, tabPair, ripple, floatXP, burst } from './components.js';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -145,27 +145,29 @@ export function sceneArc(C, fx) {
     const day = activityCard({ name: 'Morning run', xp: 25, streak: 12, dim: 'sage' });
     css(day.el, { left: '40px', top: '176px', transformOrigin: '50% 50%' }); el.appendChild(day.el);
     const date = h('div', 'kicker', '', 'left:0;width:432px;text-align:center;top:138px;color:rgba(255,255,255,0.5)'); el.appendChild(date);
-    const rip = ripple(); el.appendChild(rip);
     const fxc = hiCanvas(W, H, 'abs'); el.appendChild(fxc);
     const flt = floatXP('+25 XP'); el.appendChild(flt);
     const tok = token(); el.appendChild(tok.el); tok.setLevel(14); css(tok.eye, { display: 'none' });
+    // S5: the character again, riding the line to the end of the journey
+    // (inside the chart group so it shares every camera move of the chart)
+    const tok2 = token(); grp.appendChild(tok2.el); css(tok2.eye, { display: 'none' });
     const fog = h('div', 'layer'); el.appendChild(fog);
     // S6: the character's card
-    const mine = activityCard({ name: 'Write 500 words', xp: 40, streak: 21, dim: 'amber' });
+    const mine = activityCard({ name: 'Read 10 pages', xp: 25, streak: 21, dim: 'purple' });
     css(mine.el, { left: '40px', top: '150px' }); el.appendChild(mine.el);
 
     let RECT = null, ringC = null;
     const measure = () => {
-      const b = card.box.getBoundingClientRect(), s = el.getBoundingClientRect();
-      const bx = b.left - s.left, by = b.top - s.top;
-      RECT = { x: bx + 52, y: by + 18, w: b.width - 72, h: b.height - 52 };
-      const r = day.ringWrap.getBoundingClientRect();
-      ringC = [r.left - s.left + r.width / 2, r.top - s.top + r.height / 2];
+      // layout positions, not on-screen boxes: nothing here may depend on
+      // whatever transform an element happens to be in at the first frame
+      const [bx, by] = layoutPos(card.box, el);
+      RECT = { x: bx + 52, y: by + 18, w: card.box.offsetWidth - 72, h: card.box.offsetHeight - 52 };
+      ringC = layoutCenter(day.ringWrap, el);
     };
     // Range windows (days back from today) and the y-window that fits them
     const RANGES = { '1M': 30, '3M': 91, '6M': 182, '1Y': 364 };
     const winFor = (days) => { const x0 = LAST - days, a = year[x0].v, b = year[LAST].v; return { x0, x1: LAST, v0: Math.max(0, a - (b - a) * 0.04), v1: b + (b - a) * 0.06 }; };
-    const rangeKeys = [[C.longPeriod - 1, '1M'], [C.r3m, '3M'], [C.r6m, '6M'], [C.r1y, '1Y']];
+    const rangeKeys = [[C.over - 1, '1M'], [C.r3m, '3M'], [C.r6m, '6M'], [C.r1y, '1Y']];
     const dateOf = (d) => new Date(2025, 9, 17 + d);     // day 364 = Fri, Oct 16 2026
     const xLabel = (d) => { const dt = dateOf(d); return `${dt.getMonth() + 1}/${dt.getDate()}`; };
 
@@ -197,7 +199,7 @@ export function sceneArc(C, fx) {
         const slope = Math.atan2(focusIdx(LAST)[1] - focusIdx(LAST - 3)[1], focusIdx(LAST)[0] - focusIdx(LAST - 3)[0]);
         // S5 pull-back, then a push toward "the end of the journey"
         const pb = E.inOutQuart(prog(t, C.onlyAudience - 0.05, 1.55));
-        const toEnd = env(t, C.thatToo, C.longPeriod + 0.2, 0.9, 0.35, E.inOutCubic, E.inOutCubic);
+        const toEnd = env(t, C.reaches - 0.3, C.soFor + 0.15, 1.0, 0.35, E.inOutCubic, E.inOutCubic);
         const S4s = 11.5;
         const sZoom = lerp(S4s, 1, pb);
         const center = [RECT.x + RECT.w / 2, RECT.y + RECT.h / 2];
@@ -244,7 +246,7 @@ export function sceneArc(C, fx) {
 
         // ── S4 day card ───────────────────────────────────────────────
         const s4on = t < C.onlyAudience + 0.5;
-        show(day.el, s4on); show(date, s4on); show(rip, s4on); show(flt, s4on); show(fxc, s4on);
+        show(day.el, s4on); show(date, s4on); show(flt, s4on); show(fxc, s4on);
         // fog keeps the view narrow until the pull-back
         const fogA = (1 - E.inOutCubic(prog(t, C.onlyAudience, 1.1))) * lerp(1, 0.85, E.outCubic(prog(t, C.theyLive, 0.6)));
         css(fog, { background: fogA > 0.002 ? `radial-gradient(ellipse 78% 52% at 50% 40%, rgba(14,15,18,0) 38%, rgba(14,15,18,${(0.88 * fogA).toFixed(3)}) 100%)` : 'none' });
@@ -264,16 +266,14 @@ export function sceneArc(C, fx) {
           const pop = Math.sin(clamp((t - b) / 0.3, 0, 1) * Math.PI) * 0.035;
           css(day.el, { opacity: (enter * (1 - leave)).toFixed(3), transform: `translateX(${(lerp(150, 0, enter) - 40 * leave).toFixed(1)}px) translateY(${(-30 * leave).toFixed(1)}px) scale(${(1 + pop).toFixed(4)})` });
           css(date, { opacity: (enter * (1 - leave)).toFixed(3), transform: `translateX(${lerp(60, 0, enter).toFixed(1)}px)` });
-          // ripple + float
-          const rp = prog(t, b - 0.06, 0.45);
-          css(rip, { left: ringC[0] + 'px', top: ringC[1] + 'px', opacity: (rp > 0 && rp < 1 ? 1 - rp : 0).toFixed(3), transform: `scale(${lerp(1, 7, E.outCubic(rp)).toFixed(3)})` });
-          const fp = prog(t, b + 0.05, 0.75);
-          flt.textContent = '+25 XP';
-          css(flt, { left: (ringC[0] - 26) + 'px', top: (ringC[1] - 26 - 44 * E.outCubic(fp)).toFixed(1) + 'px', opacity: (fp > 0 && fp < 1 ? Math.min(1, fp * 6, (1 - fp) * 3) : 0).toFixed(3) });
-          // completion sparkle + light sweep across the card
-          const bp = prog(t, b + 0.02, 0.6);
-          burst(fxc.ctx, ringC[0] + (lerp(150, 0, enter) - 40 * leave), ringC[1] - 30 * leave, bp, 40 + ci);
+          // ripple + sparkle ride on the ring itself; the float follows the card
+          day.setRipple(prog(t, b - 0.06, 0.45));
+          day.setBurst(prog(t, b + 0.02, 0.6), 40 + ci);
           day.setSheen(prog(t, b + 0.05, 0.55));
+          const fp = prog(t, b + 0.05, 0.75);
+          const cdx = lerp(150, 0, enter) - 40 * leave, cdy = -30 * leave;
+          flt.textContent = '+25 XP';
+          css(flt, { left: (ringC[0] + cdx - 26) + 'px', top: (ringC[1] + cdy - 26 - 44 * E.outCubic(fp)).toFixed(1) + 'px', opacity: (fp > 0 && fp < 1 ? Math.min(1, fp * 6, (1 - fp) * 3) : 0).toFixed(3) });
           // day labels under the revealed points (the character's narrow view)
           const lc = fxc.ctx; lc.font = '600 9px Inter, sans-serif'; lc.textAlign = 'center';
           for (let d = firstShown - 3; d <= firstShown + k; d++) {
@@ -298,6 +298,25 @@ export function sceneArc(C, fx) {
           const tin = E.outCubic(prog(t, C.theyLive - 0.05, 0.4));
           css(tok.el, { transform: `translate(${P[0].toFixed(2)}px, ${(P[1] - 26).toFixed(2)}px) scale(${lerp(0.7, 0.2, gone).toFixed(3)})`, opacity: (tin * (1 - gone)).toFixed(3) });
           css(tok.lvl, { opacity: '0' });
+        }
+
+        // ── S5: "once the character reaches the end of their journey" ──
+        const t2On = t >= C.onceChar - 0.15 && t < C.soFor + 0.5;
+        show(tok2.el, t2On);
+        if (t2On) {
+          const ride = E.inOutCubic(prog(t, C.onceChar + 0.05, C.endOfJourney - C.onceChar + 0.05));
+          const fx0 = LAST - 140, fxi = lerp(fx0, LAST, ride);
+          const i0 = Math.floor(fxi), u = fxi - i0;
+          const pv = { x: fxi, v: lerp(year[i0].v, year[Math.min(LAST, i0 + 1)].v, u) };
+          const P = toScreenOf(cv, pv, view, RECT, camS6);
+          const tin = E.outBack(prog(t, C.onceChar - 0.15, 0.4));
+          const tout = E.inCubic(prog(t, C.soFor, 0.4));
+          const arrive = pulse(t, C.endOfJourney, 3.5);
+          tok2.setLevel(Math.round(lerp(24, 31, ride)));
+          css(tok2.el, { transform: `translate(${P[0].toFixed(2)}px, ${(P[1] - 24).toFixed(2)}px) scale(${(0.62 * lerp(0.4, 1, tin) * (1 + 0.12 * arrive)).toFixed(3)})`, opacity: (clamp(tin * 1.5, 0, 1) * (1 - tout)).toFixed(3) });
+          css(tok2.av, { boxShadow: `0 0 ${(10 + 26 * arrive).toFixed(1)}px rgba(90,159,212,${(0.5 + 0.4 * arrive).toFixed(3)})` });
+          css(tok2.lvl, { opacity: (0.9 * clamp(tin, 0, 1)).toFixed(3) });
+          tok2.setTrace(prog(t, C.endOfJourney - 0.05, 1.5));
         }
 
         // ── S6: the character's card ──────────────────────────────────

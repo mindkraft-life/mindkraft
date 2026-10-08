@@ -2,10 +2,11 @@
 Winter Arc — original score and sound design, synthesised from scratch.
 
 Every musical event is placed from data/cues.json (the same beat sheet the
-picture uses), on a 120 BPM grid whose phase (0.21 s) matches the speaker's
-own cadence: "Mindkraft", "Here", "log", "step back" and "your own arc" all
-land within ~20 ms of a beat. Nothing here is sampled; it is all oscillators,
-noise and filters, so the track is ours outright.
+picture uses). The timing runs on a tempo map: each section has its own
+steady grid (around 120 BPM) anchored on the words that matter, so "winter",
+"fail", "Mindkraft", "step back", "arc" and the end card all land on a
+downbeat. Nothing here is sampled; it is all oscillators, noise and filters,
+so the track is ours outright.
 
     python audio/score.py OUT_DIR
 
@@ -26,7 +27,6 @@ C = CUE["cues"]
 SR = 48000
 DUR = CUE["duration"]
 N = int(SR * DUR)
-BEAT = 60.0 / CUE["bpm"]
 RNG = np.random.default_rng(20261007)
 
 
@@ -370,10 +370,30 @@ def crackle(dur, density=40, vel=0.25, seed=0):
 
 
 # ── the score ──────────────────────────────────────────────────────────────
-def grid(t):
-    """Snap a time to the nearest 8th note of the 120 BPM grid."""
-    ph = CUE["gridPhase"]
-    return ph + round((t - ph) / (BEAT / 2)) * (BEAT / 2)
+# Tempo map: (anchor time, beat length). Grids run from their anchor; each
+# section's beat length is set so its last beat lands on the next anchor.
+TM = {
+    "hook": (C["everyone"], 0.5),                                   # "winter" 4.0 and "fail" 6.0 are beats
+    "story": (C["storytelling"], 0.5),
+    "reveal": (C["onlyAudience"], 0.5),
+    "groove": (C["soFor"], (C["memory"] - C["soFor"]) / 40),         # 10 bars → "But don't trust your memory"
+    "memory": (C["memory"], 0.5),
+    "drop": (C["mindkraft"], (C["stepBack"] - C["mindkraft"]) / 24),  # 6 bars → "step back"
+    "climax": (C["stepBack"], (C["arcEnd"] - C["stepBack"]) / 8),     # 2 bars → "arc"
+    "outro": (C["arcEnd"], 0.5),
+}
+
+
+def bt(sec, k):
+    """Time of beat k (may be fractional) in a section of the tempo map."""
+    t0, b = TM[sec]
+    return t0 + k * b
+
+
+def steps(t0, t1, dt):
+    """Times from t0 (inclusive) to t1 (exclusive) every dt."""
+    n = int(np.floor((t1 - t0) / dt + 1e-9))
+    return [t0 + i * dt for i in range(max(0, n))]
 
 
 CH = {  # chord voicings
@@ -394,19 +414,24 @@ CH = {  # chord voicings
 }
 ROOT_OF = {k: v[0] for k, v in CH.items()}
 
-# (start, end, chord) — bars of 2 s from 22.71; the drumless memory section
-# absorbs a 2/4 bar so 55.71 ("Mindkraft") is a downbeat.
-PROG = [
-    (0.00, 7.21, None),
-    (7.21, 11.21, "Dm9"), (11.21, 15.21, "Bbmaj9"), (15.21, 19.21, "Gm9"), (19.21, 21.21, "Asus"), (21.21, 22.71, "A"),
-    (22.71, 24.71, "Bb"), (24.71, 26.71, "F/A"), (26.71, 28.71, "C"),
-    (28.71, 32.71, "Dm"), (32.71, 36.71, "Bb"), (36.71, 40.71, "F"), (40.71, 44.71, "C"), (44.71, 46.71, "Dm"),
-    (46.71, 48.71, "Dm9"), (48.71, 50.71, "Bbmaj7"), (50.71, 52.71, "Gm9"), (52.71, 54.71, "Gm7"),
-    (55.71, 57.71, "Bb"), (57.71, 59.71, "F/A"), (59.71, 60.71, "Gm7"), (60.71, 61.71, "C"),
-    (61.71, 62.71, "Bb"), (62.71, 63.71, "C"),
-    (63.71, 64.71, "Dm"), (64.71, 65.71, "Bb"), (65.71, 66.71, "F"), (66.71, 67.71, "C"),
-    (67.71, 68.71, "Bbmaj7"), (68.71, 69.71, "Csus"), (69.71, 73.5, "Fadd9"),
-]
+def _prog():
+    st, mem = C["storytelling"], C["memory"]
+    g = lambda k: bt("groove", k)
+    d = lambda k: bt("drop", k)
+    c = lambda k: bt("climax", k)
+    return [
+        (st, st + 4, "Dm9"), (st + 4, st + 8, "Bbmaj9"), (st + 8, st + 12, "Gm9"), (st + 12, st + 15, "Asus"), (st + 15, C["onlyAudience"], "A"),
+        (C["onlyAudience"], C["over"], "Bb"), (C["over"], C["onceChar"], "F/A"), (C["onceChar"], C["endOfJourney"], "C"),
+        (C["endOfJourney"], C["journeyEnd"], "Asus"), (C["journeyEnd"], C["soFor"], "A"),
+        (g(0), g(8), "Dm"), (g(8), g(16), "Bb"), (g(16), g(24), "F"), (g(24), g(32), "C"), (g(32), g(40), "Dm"),
+        (mem, mem + 2, "Dm9"), (mem + 2, mem + 4, "Bbmaj7"), (mem + 4, mem + 6, "Gm9"), (mem + 6, C["thisIsWhere"], "Gm7"),
+        (d(0), d(4), "Bb"), (d(4), d(8), "F/A"), (d(8), d(12), "Gm7"), (d(12), d(16), "C"), (d(16), d(20), "Bb"), (d(20), d(24), "C"),
+        (c(0), c(2), "Dm"), (c(2), c(4), "Bb"), (c(4), c(6), "C"), (c(6), c(8), "F"),
+        (C["arcEnd"], C["arcEnd"] + 2, "Bbmaj7"), (C["arcEnd"] + 2, C["arcEnd"] + 4, "Csus"), (C["arcEnd"] + 4, DUR, "Fadd9"),
+    ]
+
+
+PROG = _prog()
 
 
 def chord_at(t):
@@ -418,20 +443,21 @@ def chord_at(t):
 
 def build():
     pads, keys, bass, drums, plk, lead, sfx = buf(), buf(), buf(), buf(), buf(), buf(), buf()
-    T = tline()
+    hb = TM["hook"][1]
 
-    # ── HOOK 0 → 7.21 ─────────────────────────────────────────────────────
+    # ── HOOK 0 → "In storytelling" ────────────────────────────────────────
     # low D drone with a dark filter, from silence
-    dr = supersaw_note(nn("D2"), 5.0, 0.06, 3, 1, 300, 1.2, 0.8) + supersaw_note(nn("A2"), 5.0, 0.06, 3, 2, 320, 1.2, 0.8)
+    dr = supersaw_note(nn("D2"), 6.0, 0.06, 3, 1, 300, 1.2, 0.8) + supersaw_note(nn("A2"), 6.0, 0.06, 3, 2, 320, 1.2, 0.8)
     place(pads, dr, 0.0, 0.85)
-    place(pads, supersaw_note(nn("D4"), 4.6, 0.09, 3, 5, 900, 2.0, 1.0), 0.0, 0.18)
-    place(sfx, whoosh(0.7, 200, 2200, 0.18, 3), C["tenDays"] - 0.55)
-    # the calendar counts back: ten ticks, falling in pitch
-    st0, sdt = C["tenDays"] + 0.08, 0.082
-    for i in range(10):
-        place(sfx, tick(0.2, 2600 - i * 90, i), st0 + i * sdt, pan=0.2 * ((i % 2) * 2 - 1))
-    place(sfx, bell(nn("D6"), 0.17, 2.0, 2.0, 1.2, 4), st0 + sdt * 10 + 0.08, pan=-0.2)
-    # dive into the cell
+    place(pads, supersaw_note(nn("D4"), 5.4, 0.09, 3, 5, 900, 2.0, 1.0), 0.0, 0.18)
+    place(sfx, whoosh(0.7, 200, 2200, 0.18, 3), C["fewDays"] - 0.55)
+    # the calendar counts back a few days to Oct 1: ticks falling in pitch
+    # (same step times as the scene: fewDays + 0.08, every 0.088 s, 7 steps)
+    st0, sdt, nst = C["fewDays"] + 0.08, 0.088, 7
+    for i in range(nst):
+        place(sfx, tick(0.2, 2600 - i * 110, i), st0 + i * sdt, pan=0.2 * ((i % 2) * 2 - 1))
+    place(sfx, bell(nn("D6"), 0.17, 2.0, 2.0, 1.2, 4), st0 + sdt * nst + 0.08, pan=-0.2)
+    # dive into the Day 1 cell
     place(sfx, whoosh(0.55, 400, 6000, 0.17, 5), C["everyone"] - 0.45)
     # everyone starts: a cascade of soft plinks (pentatonic), widening
     pent = [nn(x) for x in ["D5", "F5", "G5", "A5", "C6", "D6", "F6"]]
@@ -439,28 +465,27 @@ def build():
         tt = C["everyone"] + 0.55 + (k / 26) ** 0.8 * 1.25 + RNG.uniform(0, 0.05)
         place(sfx, bell(pent[k % 7], 0.09, 1.2, 2.0, 0.8, 50 + k), tt, pan=RNG.uniform(-0.8, 0.8))
     # pulse enters with "everyone": 8th-note bass on D and ticking hats
-    for k in range(int((C["winterArc"] - 0.05 - grid(C["everyone"])) / (BEAT / 2))):
-        tt = grid(C["everyone"]) + k * BEAT / 2
-        place(bass, bass_note(nn("D2"), 0.22, 0.32 + 0.2 * k / 12), tt)
-        place(drums, hat(0.12 + 0.1 * k / 12, False, k), tt + BEAT / 4, pan=0.3)
+    pulse8 = steps(C["everyone"], C["winterArc"] - 0.05, hb / 2)
+    for k, tt in enumerate(pulse8):
+        place(bass, bass_note(nn("D2"), 0.22, 0.32 + 0.2 * k / len(pulse8)), tt)
+        place(drums, hat(0.12 + 0.1 * k / len(pulse8), False, k), tt + hb / 4, pan=0.3)
     place(sfx, riser(1.0, 600, 9000, 0.09, 6), C["winterArc"] - 1.08)
-    # WINTER ARC — the slam
+    # WINTER ARC — the slam (on a beat of the hook grid)
     place(sfx, impact(0.55, 7, 52), C["winterArc"])
     pad_chord(pads, CH["Dm9"], C["winterArc"], C["andYours"] + 0.2, 0.10, 2600, 0.01, 1.4, 3)
     place(keys, felt_piano(nn("D3"), 0.9, 3, 0.8, 1), C["winterArc"])
     place(keys, felt_piano(nn("A4"), 0.6, 3, 0.8, 2), C["winterArc"])
     place(keys, felt_piano(nn("D5"), 0.5, 3, 0.8, 3), C["winterArc"])
-    for k in range(4):                                     # driving 8ths under the title
-        tt = grid(C["winterArc"]) + (k + 1) * BEAT / 2
-        if tt < C["andYours"]:
-            place(bass, bass_note(nn("D2"), 0.22, 0.42), tt)
-            place(drums, kick(0.5, k, 0.8), tt) if k % 2 == 1 else None
+    for k, tt in enumerate(steps(C["winterArc"] + hb / 2, C["andYours"], hb / 2)):   # driving 8ths under the title
+        place(bass, bass_note(nn("D2"), 0.22, 0.42), tt)
+        if k % 2 == 1:
+            place(drums, kick(0.5, k, 0.8), tt)
     # "and yours will…" — a dissonant swell
     sw = np.zeros((2, int(1.0 * SR)))
     for i, m in enumerate(["D4", "Eb4", "A4", "Bb4"]):
         s = supersaw_note(nn(m), 0.8, 0.18, 3, 70 + i, 1800, 0.7, 0.2)
         sw[:, :s.shape[1]] += s[:, :sw.shape[1]]
-    place(pads, sw, C["andYours"], 0.11)
+    place(pads, sw, C["fail"] - 0.85, 0.11)
     place(sfx, riser(C["fail"] - C["andYours"], 300, 5000, 0.2, 8), C["andYours"])
     # FAIL — boom, a tape-stop drop, and the floor falls away
     place(sfx, impact(1.0, 9, 44), C["fail"])
@@ -474,29 +499,27 @@ def build():
     place(sfx, bell(nn("D6"), 0.13, 3.0, 1.0, 0.4, 14), C["this"] + 0.06, pan=0.1)
     place(pads, reverse_swell(1.1, CH["Dm9"], 0.22, 15), C["storytelling"] - 1.1)
 
-    # ── STORY 7.21 → 22.71: felt piano, pad, the arc ─────────────────────
+    # ── STORY → "Only the audience": felt piano, pad, the arc ───────────
     for a, b, c in PROG:
-        if c is None or a < 7.0 or a >= 22.71:
-            continue
-        pad_chord(pads, CH[c], a, b, 0.055, 1300, 1.2, 2.0, int(a * 10))
-        place(keys, felt_piano(nn(CH[c][0]) - 12 if nn(CH[c][0]) > 40 else nn(CH[c][0]), 0.55, 4.5, 0.3, int(a)), a)
-    # arpeggio: quarters in the definition, 8ths from the dive, sparse in the fog,
-    # gentle 8ths for "one day at a time"
+        if C["storytelling"] - 0.01 <= a < C["onlyAudience"] - 0.01:
+            pad_chord(pads, CH[c], a, b, 0.055, 1300, 1.2, 2.0, int(a * 10))
+            place(keys, felt_piano(nn(CH[c][0]) - 12 if nn(CH[c][0]) > 40 else nn(CH[c][0]), 0.55, 4.5, 0.3, int(a)), a)
+    # arpeggio: quarters in the definition, 8ths from the dive, sparse in the
+    # fog, gentle 8ths for "one day at a time"
     pat = [1, 2, 3, 4, 5, 4, 3, 2]
-    t = 7.21
-    k = 0
-    while t < 22.6:
+    sb = TM["story"][1]
+    t, k = C["storytelling"], 0
+    while t < C["onlyAudience"] - 0.1:
         c = chord_at(t)
-        step = BEAT if t < 12.21 else BEAT / 2
-        fog = 14.3 <= t < 16.96
-        if fog and k % 4:
-            t += step; k += 1; continue
-        notes = CH[c]
-        m = nn(notes[pat[k % 8] % len(notes)]) + 12
-        vel = 0.30 + 0.08 * np.sin(k * 0.7) + (0.06 if k % 4 == 0 else 0)
-        place(keys, felt_piano(m, vel * (0.75 if fog else 1), 2.5, 0.45, 100 + k), t, pan=0.25 * np.sin(k * 0.9))
+        step = sb if t < C["butTake"] - 0.2 else sb / 2
+        fog = C["theCharacter"] - 0.1 <= t < C["theyLive"]
+        if not (fog and k % 4):
+            notes = CH[c]
+            m = nn(notes[pat[k % 8] % len(notes)]) + 12
+            vel = 0.30 + 0.08 * np.sin(k * 0.7) + (0.06 if k % 4 == 0 else 0)
+            place(keys, felt_piano(m, vel * (0.75 if fog else 1), 2.5, 0.45, 100 + k), t, pan=0.25 * np.sin(k * 0.9))
         t += step; k += 1
-    # the token levels up as the arc draws: a rising chime per level
+    # the character levels up as the arc draws: a rising chime per level
     draw = lambda tt: 0.5 - 0.5 * np.cos(np.pi * np.clip((tt - (C["anArc"] + 0.1)) / (C["within"] - C["anArc"] - 0.15), 0, 1))
     lvl_prev = 1
     scale = [nn(x) for x in ["D5", "E5", "F5", "G5", "A5", "C6", "D6", "E6", "F6", "G6", "A6", "C7", "D7"]]
@@ -520,42 +543,44 @@ def build():
         place(sfx, bell(nn(["A5", "C6", "E6", "A6"][i]), 0.06, 1.2, 2.0, 0.8, 320 + i), d + 0.12, pan=0.35)
         place(sfx, whoosh(0.45, 300, 1800, 0.12, 330 + i), d + 0.16, pan=-0.3)
     # soft heartbeat pulse while the character lives day to day
-    for k in range(10):
-        tt = grid(C["theyLive"]) + k * BEAT
-        if tt < C["onlyAudience"] - 0.6:
-            place(drums, kick(0.22, 400 + k, 0.5), tt)
+    for k, tt in enumerate(steps(bt("story", np.ceil((C["theyLive"] - C["storytelling"]) / sb)), C["onlyAudience"] - 0.6, sb * 2)):
+        place(drums, kick(0.22, 400 + k, 0.5), tt)
     place(sfx, riser(1.5, 300, 10000, 0.3, 18), C["onlyAudience"] - 1.5)
 
-    # ── REVEAL 22.71 → 28.71 ──────────────────────────────────────────────
+    # ── REVEAL "Only the audience" → "So for your winter arc" ────────────
     place(sfx, impact(0.55, 19, 50), C["onlyAudience"])
     for a, b, c in PROG:
-        if 22.7 <= a < 28.7:
-            pad_chord(pads, CH[c], a, b + 0.3, 0.085, 3200, 0.3 if a < 23 else 0.6, 1.6, int(a * 10))
+        if C["onlyAudience"] - 0.01 <= a < C["soFor"] - 0.01:
+            pad_chord(pads, CH[c], a, b + 0.3, 0.085, 3200, 0.3 if a < C["onlyAudience"] + 0.1 else 0.6, 1.6, int(a * 10))
             place(bass, sub_note(nn(ROOT_OF[c]) - 12, b - a, 0.38), a)
             place(keys, felt_piano(nn(CH[c][0]), 0.7, 4, 0.6, int(a)), a)
     # wide piano arps an octave up
-    t, k = 22.71, 0
-    while t < 28.6:
+    for k, t in enumerate(steps(C["onlyAudience"], C["soFor"] - 0.1, TM["reveal"][1] / 2)):
         notes = CH[chord_at(t)]
         m = nn(notes[[1, 3, 4, 5, 4, 3][k % 6] % len(notes)]) + 12
         place(keys, felt_piano(m, 0.32 + 0.05 * np.sin(k), 2.4, 0.7, 500 + k), t, pan=0.3 * np.sin(k * 1.3))
-        t += BEAT / 2; k += 1
-    # "sees the arc": a glass glissando with the light sweep
+    # "see the arc": a glass glissando with the light sweep
     for j in range(12):
         place(sfx, bell(nn("D5") + [0, 3, 5, 7, 10][j % 5] + 12 * (j // 5), 0.07, 1.5, 3.5, 0.5, 600 + j), C["seesArc"] - 0.2 + j * 0.065, pan=-0.7 + j * 0.12)
-    # range pills: 1M → 3M → 6M → 1Y
+    # range pills: 1M → 3M → 6M → 1Y on "long", "period", "time"
     for j, tt in enumerate([C["r3m"], C["r6m"], C["r1y"]]):
         place(sfx, tick(0.3, 2400, 620 + j), tt)
         place(sfx, pluck(nn(["C5", "E5", "G5"][j]), 0.22, 0.8, 5000, 8, 630 + j), tt, pan=0.2)
         place(sfx, whoosh(0.3, 500, 3000, 0.08, 640 + j), tt)
+    # "once the character reaches the end of their journey": a soft rising
+    # glide while the character rides the line, a warm chime on arrival
+    n = int((C["endOfJourney"] - C["onceChar"]) * SR)
+    gl = sine(np.geomspace(hz(nn("A4")), hz(nn("E5")), n), n) * np.sin(np.pi * np.linspace(0, 1, n)) ** 0.7 * 0.045
+    place(sfx, gl, C["onceChar"], pan=0.2)
+    for j, m in enumerate(["A5", "E6", "A6"]):
+        place(sfx, bell(nn(m), 0.09 - 0.02 * j, 2.4, 2.0, 0.8, 650 + j), C["endOfJourney"] + 0.02 + j * 0.07, pan=0.3 - 0.3 * j)
 
-    # ── GROOVE 28.71 → 46.71: Character / Audience ───────────────────────
+    # ── GROOVE "So for your winter arc" → "But don't trust your memory" ──
     for a, b, c in PROG:
-        if 28.7 <= a < 46.7:
+        if C["soFor"] - 0.01 <= a < C["memory"] - 0.01:
             pad_chord(pads, CH[c], a, b, 0.085, 1900, 0.5, 1.2, int(a * 10))
-    t = 28.71
-    k = 0
-    while t < 46.6:
+    gbeat = TM["groove"][1]
+    for k, t in enumerate(steps(C["soFor"], C["memory"] - 0.05, gbeat / 2)):
         c = chord_at(t)
         r = nn(ROOT_OF[c])
         b8 = k % 8
@@ -564,21 +589,20 @@ def build():
             place(drums, kick(0.6 if b8 == 0 else 0.42, 700 + k, 0.8), t)
         if b8 in (2, 6):
             place(drums, clap(0.26, 800 + k), t, pan=0.05)
-        place(drums, hat(0.13 if b8 % 2 else 0.07, False, 900 + k), t + BEAT / 4, pan=0.35)
-        place(drums, shaker(0.07, 1000 + k), t + BEAT / 8, pan=-0.4)
+        place(drums, hat(0.13 if b8 % 2 else 0.07, False, 900 + k), t + gbeat / 4, pan=0.35)
+        place(drums, shaker(0.07, 1000 + k), t + gbeat / 8, pan=-0.4)
         # marimba-ish plucks on chord tones, every 8th
         notes = CH[c]
         m = nn(notes[[1, 3, 2, 4, 3, 5, 4, 2][b8] % len(notes)]) + 12
-        place(plk, pluck(m, 0.15 if b8 % 2 == 0 else 0.1, 0.7, 3000, 9, 1100 + k), t + BEAT / 4, pan=0.4 * np.sin(k))
-        t += BEAT / 2; k += 1
+        place(plk, pluck(m, 0.15 if b8 % 2 == 0 else 0.1, 0.7, 3000, 9, 1100 + k), t + gbeat / 4, pan=0.4 * np.sin(k))
     # tabs, whips, typing, saving, templates, history
     place(sfx, whoosh(0.4, 600, 3500, 0.1, 21), C["needToBe"] - 0.15)
     place(sfx, whoosh(0.45, 400, 5000, 0.16, 22), C["both"] - 0.1)
     place(sfx, tick(0.25, 2100, 23), C["character"]); place(sfx, tick(0.25, 2500, 24), C["audience"])
     place(sfx, whoosh(0.5, 300, 6000, 0.3, 25), C["beingCharacter"] - 0.35, pan=0.5)
     tp0, tp1 = C["something"] - 0.24, C["something"] + 0.58
-    for i in range(15):
-        place(sfx, tick(0.16 + 0.06 * RNG.random(), RNG.uniform(3500, 5200), 26 + i), tp0 + i * (tp1 - tp0) / 15, pan=RNG.uniform(-0.2, 0.2))
+    for i in range(13):                      # "Read 10 pages": 13 keystrokes
+        place(sfx, tick(0.16 + 0.06 * RNG.random(), RNG.uniform(3500, 5200), 26 + i), tp0 + i * (tp1 - tp0) / 13, pan=RNG.uniform(-0.2, 0.2))
     place(sfx, tick(0.28, 2200, 50), C["everyDay"] + 0.1)
     place(sfx, pluck(nn("A5"), 0.2, 0.8, 5000, 8, 51), C["purposeful"])
     place(sfx, bell(nn("E6"), 0.08, 2.0, 3.5, 0.6, 52), C["ownDefinition"] - 0.05)
@@ -595,62 +619,62 @@ def build():
         place(sfx, tick(0.1, 3600, 70 + i), C["journey"] - 0.6 + i * 0.075)
     place(sfx, whoosh(1.4, 300, 4000, 0.16, 90), C["journey"] - 0.65)
 
-    # ── MEMORY 46.71 → 54.71: frost, muffled, wobbling ───────────────────
+    # ── MEMORY "But don't trust your memory" → "This is where" ───────────
     mem = buf()
     for a, b, c in PROG:
-        if 46.7 <= a < 54.7:
+        if C["memory"] - 0.01 <= a < C["thisIsWhere"] - 0.01:
             pad_chord(mem, CH[c], a, b + 0.6, 0.06, 1400, 0.9, 2.0, int(a * 10), 0.16)
             place(mem, felt_piano(nn(CH[c][0]), 0.55, 4, 0.3, int(a)), a)
-    t, k = 46.71, 0
-    while t < 54.0:
+    for k, t in enumerate(steps(C["memory"], C["thisIsWhere"] - 0.3, TM["memory"][1])):
         notes = CH[chord_at(t)]
         m = nn(notes[[1, 3, 2, 4, 3, 5][k % 6] % len(notes)]) + 12
         place(mem, felt_piano(m, 0.34, 2.5, 0.35, 1200 + k), t, pan=0.3 * np.sin(k))
-        t += BEAT; k += 1
     # wow & flutter: a slowly modulated delay line = pitch wobble ("memory")
     tt = tline()
     dly = 0.006 + 0.004 * np.sin(2 * np.pi * 0.45 * tt) + 0.0015 * np.sin(2 * np.pi * 3.1 * tt)
     idx = np.clip(np.arange(N) - dly * SR, 0, N - 1)
     i0 = np.floor(idx).astype(int); fr = idx - i0
     mem = mem[:, i0] * (1 - fr) + mem[:, np.minimum(i0 + 1, N - 1)] * fr
-    fade_mem = kf_curve([(0, 0), (46.6, 0), (46.9, 1), (53.6, 0.7), (54.6, 0.0), (73.5, 0)])
-    mem = filt_tv(mem, "lp", lambda x: float(np.interp(x, [46.7, 48.5, 52.5, 54.6], [3500, 1100, 700, 400])), 0.7) * fade_mem
+    m0, m1 = C["memory"], C["thisIsWhere"]
+    fade_mem = kf_curve([(0, 0), (m0 - 0.1, 0), (m0 + 0.2, 1), (m1 - 0.7, 0.7), (m1 + 0.3, 0.0), (DUR, 0)])
+    mem = filt_tv(mem, "lp", lambda x: float(np.interp(x, [m0, m0 + 1.8, m0 + 5.8, m1 + 0.3], [3500, 1100, 700, 400])), 0.7) * fade_mem
     keys += mem
     place(sfx, crackle(2.6, 22, 0.07, 91), C["memory"] + 0.1)
-    place(sfx, crackle(1.4, 12, 0.05, 92), C["terrible"] + 0.6)
+    place(sfx, crackle(1.4, 12, 0.05, 92), C["memoryWord"] + 0.6)
     # the quits come forward: low clusters
     place(sfx, felt_piano(nn("C#3"), 0.35, 3, 0.2, 93) + felt_piano(nn("D3"), 0.35, 3, 0.2, 94), C["onlyRemember"] + 0.2)
     place(sfx, impact(0.32, 95, 40), C["quit"])
     place(sfx, reverse_swell(0.6, ["C#4", "D4", "G#4"], 0.1, 96), C["quit"] - 0.6)
-    # forgetting: each lost day a tiny falling glint
+    # "and not all the times that we showed up": each lost day a falling glint
     for i in range(28):
         place(sfx, bell(nn("A6") - (i % 7) * 2 - 12 * (i // 14), 0.035, 1.0, 1.9, 0.4, 1300 + i), C["forgetting"] - 0.1 + i * 0.055, pan=RNG.uniform(-0.7, 0.7))
 
-    # ── MINDKRAFT 54.91 → 57.21 ───────────────────────────────────────────
+    # ── MINDKRAFT: riser, a breath of silence, the drop ─────────────────
     gap = C["mindkraft"] - 0.12
     rz = riser(gap - C["thisIsWhere"] + 0.1, 200, 12000, 0.42, 97)
     place(sfx, rz, C["thisIsWhere"] - 0.1)
     place(pads, reverse_swell(gap - C["thisIsWhere"] + 0.1, ["D4", "A4", "D5", "F5"], 0.25, 98), C["thisIsWhere"] - 0.1)
     place(sfx, impact(0.85, 99, 48), C["mindkraft"])
     for j, m in enumerate(["F5", "A5", "C6", "D6", "F6", "A6", "C7"]):          # the shatter
-        place(sfx, bell(nn(m), 0.06, 2.8, 2.7, 1.5, 1400 + j), C["mindkraft"] + j * 0.03, pan=-0.9 + j * 0.3)
-    place(sfx, filt(noise(int(1.5 * SR), 1410), "hp", 5000) * np.exp(-np.arange(int(1.5 * SR)) / SR * 3) * 0.08, C["mindkraft"])
+        place(sfx, bell(nn(m), 0.045, 2.8, 2.7, 1.5, 1400 + j), C["mindkraft"] + j * 0.03, pan=-0.9 + j * 0.3)
+    place(sfx, filt(noise(int(1.5 * SR), 1410), "hp", 5000) * np.exp(-np.arange(int(1.5 * SR)) / SR * 3) * 0.05, C["mindkraft"])
 
-    # ── DROP 55.71 → 67.21: define, log, New Year, step back ─────────────
+    # ── DROP "Mindkraft" → "step back" (24 beats) ─────────────────────────
+    db = TM["drop"][1]
     for a, b, c in PROG:
-        if 55.7 <= a < 67.7:
-            big = a >= 63.7
-            pad_chord(pads, CH[c], a, b + 0.1, 0.075 if not big else 0.095, 2600 if not big else 4200, 0.04 if a in (55.71, 63.71) else 0.25, 0.8, int(a * 10), 0.13)
+        if C["mindkraft"] - 0.01 <= a < C["stepBack"] - 0.01:
+            pad_chord(pads, CH[c], a, b + 0.1, 0.075, 2600, 0.04 if abs(a - C["mindkraft"]) < 0.01 else 0.25, 0.8, int(a * 10), 0.13)
             place(keys, felt_piano(nn(CH[c][0]), 0.7, 3, 0.7, int(a)), a)
-    t, k = 55.71, 0
-    while t < 67.15:
+    groove_on = bt("drop", 3)                     # beat 3 ≈ "Here"
+    kicks = []
+    for k, t in enumerate(steps(C["mindkraft"], C["stepBack"] - 0.02, db / 4)):
         c = chord_at(t)
         r = nn(ROOT_OF[c])
-        groove = t >= 57.2
+        groove = t >= groove_on - 0.01
         b16 = k % 16
         if groove:
             if b16 % 4 == 0:
-                place(drums, kick(0.62, 1500 + k), t)
+                place(drums, kick(0.62, 1500 + k), t); kicks.append(t)
             if b16 in (4, 12):
                 place(drums, clap(0.32, 1600 + k), t, pan=0.05)
             if b16 % 4 == 2:
@@ -659,19 +683,23 @@ def build():
                 place(drums, hat(0.045, False, 1800 + k), t, pan=-0.3)
             if b16 % 2 == 0:
                 place(bass, bass_note(r - 12 if r >= 43 else r, 0.2, 0.36 if b16 % 4 == 0 else 0.26), t)
-        # 16th-note pluck arp throughout
-        notes = CH[c]
+        notes = CH[c]                              # 16th-note pluck arp throughout
         m = nn(notes[[1, 2, 3, 4, 5, 3, 4, 2][k % 8] % len(notes)]) + 12
         place(plk, pluck(m, 0.13 if groove else 0.08, 0.6, 3500 if groove else 2000, 10, 1900 + k), t, pan=0.5 * np.sin(k * 0.8))
-        t += BEAT / 4; k += 1
-    # pickup fill into "Here"
-    for i in range(4):
-        place(drums, clap(0.08 + 0.04 * i, 2000 + i), 56.21 + 0.75 + i * BEAT / 8)
-    # define your arc: cards cascade
+    for i in range(4):                             # pickup fill into "Here"
+        place(drums, clap(0.08 + 0.04 * i, 2000 + i), bt("drop", 2.5 + i / 8))
+    # "define your arc": the group arrives; on "arc" a soft confirm
+    place(sfx, whoosh(0.35, 600, 2800, 0.08, 2100), C["define"] - 0.3)
+    place(sfx, tick(0.14, 2300, 2101), C["define"] - 0.05)
+    place(sfx, bell(nn("D6"), 0.07, 1.6, 2.0, 0.8, 2102), C["define"] + 0.5, pan=-0.2)
+    # "break it down into simple actions": three cards unfold
     for i in range(3):
-        place(sfx, whoosh(0.3, 600, 2800, 0.07, 2100 + i), C["define"] + i * 0.13)
-        place(sfx, tick(0.12, 2200 + 300 * i, 2110 + i), C["define"] + 0.18 + i * 0.13)
-    # log each time: tap, chime, xp flies to the bar and lands
+        place(sfx, whoosh(0.3, 600, 2800, 0.08, 2105 + i), C["breakDown"] + i * 0.32)
+        place(sfx, tick(0.13, 2200 + 300 * i, 2110 + i), C["breakDown"] + 0.2 + i * 0.32)
+    # "you do every day": the streak chips light up in turn
+    for i in range(3):
+        place(sfx, pluck(nn(["A5", "C6", "D6"][i]), 0.07, 0.5, 5000, 10, 2115 + i), C["everyDay2"] - 0.2 + i * 0.16, pan=0.3)
+    # "show up each day": tap, chime, xp flies to the bar and lands
     for i, tt in enumerate([C["log1"], C["log2"], C["log3"]]):
         place(sfx, tick(0.24, 1800, 2200 + i), tt - 0.03)
         place(sfx, bell(nn(["E5", "G5", "C6"][i]), 0.14, 1.6, 2.0, 1.0, 2210 + i), tt + 0.02, pan=0.25)
@@ -683,11 +711,12 @@ def build():
     for i, tt in enumerate([C["byTheTime"] - 0.05, C["byTheTime"] + 0.3, C["byTheTime"] + 0.56, C["year"] - 0.04]):
         place(sfx, whoosh(0.25, 1000, 7000, 0.12, 2300 + i), tt - 0.05)
         place(sfx, tick(0.25, 2600 + 200 * i, 2310 + i), tt)
-    roll_t = 61.71
+    r0 = bt("drop", 19)
+    roll_t = r0
     while roll_t < C["stepBack"] - 0.02:
-        u = (roll_t - 61.71) / (C["stepBack"] - 61.71)
+        u = (roll_t - r0) / (C["stepBack"] - r0)
         place(drums, clap(0.06 + 0.22 * u ** 1.5, int(roll_t * 1000)), roll_t, pan=0.1 * np.sin(roll_t * 40))
-        roll_t += BEAT / 2 if u < 0.25 else BEAT / 4 if u < 0.6 else BEAT / 8
+        roll_t += db / 2 if u < 0.25 else db / 4 if u < 0.6 else db / 8
     place(sfx, riser(2.2, 300, 12000, 0.35, 2320), C["stepBack"] - 2.2)
     for j, m in enumerate(["D6", "F6", "A6", "C7", "D7"]):                     # gold
         place(sfx, bell(nn(m), 0.07, 2.5, 3.5, 0.6, 2330 + j), C["year"] + 0.03 + j * 0.05, pan=-0.5 + j * 0.25)
@@ -696,17 +725,38 @@ def build():
     for j in range(12):                                                         # confetti
         place(sfx, tick(0.05, RNG.uniform(3000, 7000), 2350 + j), C["arrives"] + 0.05 + RNG.uniform(0, 0.8), pan=RNG.uniform(-0.8, 0.8))
 
-    # ── CLIMAX 63.71 → 67.21 ──────────────────────────────────────────────
+    # ── CLIMAX "step back" → "arc" (8 beats) ──────────────────────────────
+    cbeat = TM["climax"][1]
     place(sfx, impact(1.0, 2400, 46), C["stepBack"])
     place(sfx, whoosh(1.2, 2000, 200, 0.3, 2401), C["stepBack"] - 0.02)
     for a, b, c in PROG:
-        if 63.7 <= a < 67.7:
+        if C["stepBack"] - 0.01 <= a < C["arcEnd"] - 0.01:
+            pad_chord(pads, CH[c], a, b + 0.1, 0.095, 4200, 0.04 if abs(a - C["stepBack"]) < 0.01 else 0.25, 0.8, int(a * 10), 0.13)
+            place(keys, felt_piano(nn(CH[c][0]), 0.7, 3, 0.7, int(a)), a)
             place(bass, sub_note(nn(ROOT_OF[c]) - 12, b - a, 0.3), a)
-    melody = [("F5", 0.0, 0.5), ("E5", 0.5, 0.25), ("F5", 0.75, 0.25), ("D5", 1.0, 0.5), ("F5", 1.5, 0.25), ("G5", 1.75, 0.25),
-              ("A5", 2.0, 1.0), ("C6", 3.0, 0.5), ("A5", 3.5, 0.5)]
+    for k, t in enumerate(steps(C["stepBack"], C["arcEnd"] - 0.02, cbeat / 4)):
+        c = chord_at(t)
+        r = nn(ROOT_OF[c])
+        b16 = k % 16
+        if b16 % 4 == 0:
+            place(drums, kick(0.62, 2450 + k), t); kicks.append(t)
+        if b16 in (4, 12):
+            place(drums, clap(0.32, 2460 + k), t, pan=0.05)
+        if b16 % 4 == 2:
+            place(drums, hat(0.13, b16 == 14, 2470 + k), t, pan=0.3)
+        elif b16 % 2 == 1:
+            place(drums, hat(0.045, False, 2480 + k), t, pan=-0.3)
+        if b16 % 2 == 0:
+            place(bass, bass_note(r - 12 if r >= 43 else r, 0.2, 0.36 if b16 % 4 == 0 else 0.26), t)
+        notes = CH[c]
+        m = nn(notes[[1, 2, 3, 4, 5, 3, 4, 2][k % 8] % len(notes)]) + 12
+        place(plk, pluck(m, 0.13, 0.6, 3800, 10, 2490 + k), t, pan=0.5 * np.sin(k * 0.8))
+    place(drums, kick(0.5, 2499), C["arcEnd"]); kicks.append(C["arcEnd"])
+    melody = [("F5", 0.0, 1.0), ("E5", 1.0, 0.5), ("F5", 1.5, 0.5), ("D5", 2.0, 1.0), ("F5", 3.0, 0.5), ("G5", 3.5, 0.5),
+              ("A5", 4.0, 2.0), ("C6", 6.0, 1.0), ("A5", 7.0, 1.0)]       # offsets/durations in beats
     for nm, o, d in melody:
-        tt = C["stepBack"] + o
-        place(lead, pluck(nn(nm), 0.22, d + 0.8, 5200, 5, int(tt * 100)), tt)
+        tt = bt("climax", o)
+        place(lead, pluck(nn(nm), 0.22, d * cbeat + 0.8, 5200, 5, int(tt * 100)), tt)
         place(lead, bell(nn(nm) + 12, 0.05, 1.6, 2.0, 0.6, int(tt * 100) + 1), tt)
     # the arc completes: stat counters tick, gold shimmer
     for i in range(20):
@@ -714,18 +764,18 @@ def build():
     for j, m in enumerate(["A6", "C7", "E7", "A7"]):
         place(sfx, bell(nn(m) - 12, 0.08, 2.4, 3.5, 0.5, 2520 + j), C["ownArc2"] + 0.22 + j * 0.06, pan=0.4 - 0.25 * j)
 
-    # ── OUTRO 67.21 → end: the question, then home ───────────────────────
+    # ── OUTRO "So, what's your winter arc…" → end card ───────────────────
+    tail = DUR - 0.8
     for a, b, c in PROG:
-        if a >= 67.7:
+        if a >= C["arcEnd"] - 0.01:
             last = c == "Fadd9"
-            pad_chord(pads, CH[c], a, min(b, 72.7) if last else b + 0.2, 0.07, 2200, 0.4, 2.6 if last else 0.8, int(a * 10), 0.12)
+            pad_chord(pads, CH[c], a, tail - 1.6 if last else b + 0.2, 0.07, 2200, 0.4, 2.6 if last else 0.8, int(a * 10), 0.12)
             place(keys, felt_piano(nn(CH[c][0]), 0.6, 5 if last else 3, 0.5, int(a)), a)
-    t, k = 67.71, 0
-    while t < 72.0:
+    fade0 = C["endCard"] + 1.6
+    for k, t in enumerate(steps(C["arcEnd"], tail - 1.0, TM["outro"][1] / 2)):
         notes = CH[chord_at(t)]
         m = nn(notes[[1, 3, 5, 4, 2, 4][k % 6] % len(notes)]) + 12
-        place(keys, felt_piano(m, 0.28 * (1 - max(0, t - 70.5) / 1.8), 2.8, 0.6, 2600 + k), t, pan=0.35 * np.sin(k))
-        t += BEAT / 2; k += 1
+        place(keys, felt_piano(m, 0.28 * (1 - max(0, t - fade0) / (tail - 1.0 - fade0)), 2.8, 0.6, 2600 + k), t, pan=0.35 * np.sin(k))
     for i, m in enumerate(["G5", "C6", "F5"]):                                  # the dashed possibilities
         st = C["winter3"] - 0.1 + i * 0.22
         n = int(1.1 * SR)
@@ -737,22 +787,21 @@ def build():
     place(sfx, tick(0.15, 3000, 2720), C["endCard"] + 1.25)
 
     # ── busses: sidechain pump, space, glue ──────────────────────────────
-    kick_times = [C["fail"]]
-    tl = tline()
     pump = np.ones(N)
-    t = 57.21
-    while t < 67.2:
-        i = int(t * SR); L = int(0.3 * SR)
-        pump[i:i + L] = np.minimum(pump[i:i + L], 1 - 0.45 * np.exp(-np.arange(L) / SR / 0.09)[:N - i if i + L > N else L])
-        t += BEAT
+    for t in kicks:
+        i = int(t * SR); L = min(int(0.3 * SR), N - i)
+        if L > 0:
+            pump[i:i + L] = np.minimum(pump[i:i + L], 1 - 0.45 * np.exp(-np.arange(L) / SR / 0.09))
     pads *= pump; plk *= pump; bass *= np.sqrt(pump)
 
     music = pads * 1.0 + keys * 0.9 + bass * 0.9 + drums * 0.8 + plk * 0.7 + lead * 0.75
     music += reverb(pads * 0.6 + keys + plk * 0.8 + lead, IR_HALL, 0.34)
     music += reverb(drums * 0.5, IR_ROOM, 0.16)
-    music += delay(plk * 0.5 + lead * 0.4, BEAT * 0.75, 0.38) * 0.5
-    # section automation (dB): lift the long Character/Audience stretch
-    sec = kf_curve([(0, 2.0), (6.5, 2.0), (7.2, 0), (28.4, 0), (28.9, 3.0), (46.4, 3.0), (46.9, 0), (73.5, 0)])
+    music += delay(plk * 0.5 + lead * 0.4, 0.375, 0.38) * 0.5
+    # section automation (dB): lift the hook and the long Character/Audience stretch
+    sec = kf_curve([(0, 2.0), (C["storytelling"] - 1.0, 2.0), (C["storytelling"] - 0.3, 0), (C["soFor"] - 0.3, 0), (C["soFor"] + 0.2, 3.0),
+                    (C["memory"] - 0.3, 3.0), (C["memory"] + 0.2, 0),
+                    (C["soWhats"] - 0.3, 0), (C["soWhats"] + 0.2, -4.0), (C["endCard"] - 0.12, -4.0), (C["endCard"] + 0.05, 0), (DUR, 0)])
     music = music * 10 ** (sec / 20)
     music = filt(filt(music, "hp", 36, 0.7), "hp", 36, 0.7)
     music = filt(music, "peak", 280, 0.8, -3.0)

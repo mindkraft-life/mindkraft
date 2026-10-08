@@ -112,3 +112,17 @@ export function hiCanvas(w, h, cls) {
 export function clearCanvas(c) {
   c.ctx.save(); c.ctx.setTransform(1, 0, 0, 1, 0, 0); c.ctx.clearRect(0, 0, c.width, c.height); c.ctx.restore();
 }
+
+/**
+ * Layout position of `el` relative to `root` (an offsetParent ancestor),
+ * ignoring CSS transforms — safe to call while things are mid-animation.
+ */
+export function layoutPos(el, root) {
+  let x = 0, y = 0, e = el;
+  while (e && e !== root) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  return [x, y];
+}
+export function layoutCenter(el, root) {
+  const [x, y] = layoutPos(el, root);
+  return [x + el.offsetWidth / 2, y + el.offsetHeight / 2];
+}

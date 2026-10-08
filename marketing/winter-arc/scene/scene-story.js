@@ -8,7 +8,7 @@
 // S11 57.23 → 61.47  Define your arc and log each time you live up to it
 // S12 61.47 → 63.71  By the time the New Year arrives — time-lapse, level up
 // ════════════════════════════════════════════════════════════════════════
-import { W, H, clamp, lerp, prog, E, tw, kf, env, pulse, rnd, rndr, noise1, h, css, show, fmt, hiCanvas, clearCanvas } from './engine.js';
+import { W, H, clamp, lerp, prog, E, tw, kf, env, pulse, rnd, rndr, noise1, h, css, show, fmt, hiCanvas, clearCanvas, layoutPos, layoutCenter } from './engine.js';
 import { COL, activityCard, groupHeader, stickyHeader, msgToast, floatXP, levelUpCard, brandLockup, calendarCard, historyCard, historyDateHeader, historyRow, activityEditor, ripple, burst } from './components.js';
 
 const MISSED = [6, 15, 27];          // the days "we quit" in October
@@ -23,8 +23,10 @@ export function sceneStory(C, fx) {
     const edWrap = h('div', 'abs', '', 'left:30px;top:104px;width:372px;transform-origin:50% 0;');
     edWrap.appendChild(ed.el); el.appendChild(edWrap);
     css(ed.el, { left: '0px', top: '0px' });
-    const rip = ripple(); el.appendChild(rip);
-    const mine = activityCard({ name: 'Write 500 words', xp: 40, streak: 0, dim: 'amber' });
+    // the press ripple sits inside the Save button, centred on it
+    const saveFx = h('div', 'mk-ringfx', '<div class="mk-ripple"></div>'); css(ed.save, { position: 'relative', overflow: 'visible' }); ed.save.appendChild(saveFx);
+    const rip = saveFx.firstChild;
+    const mine = activityCard({ name: 'Read 10 pages', xp: 25, streak: 0, dim: 'purple' });
     css(mine.el, { left: '40px', top: '170px' }); el.appendChild(mine.el);
     const tplK = h('div', 'kicker', 'Someone else’s template', 'left:0;width:432px;text-align:center;top:262px;color:rgba(251,191,36,0.75)'); el.appendChild(tplK);
     const tpl = ['Wake up at 5 AM', 'Cold plunge', 'No sugar · 75 days'].map((n, i) => {
@@ -33,12 +35,10 @@ export function sceneStory(C, fx) {
       css(c.item, { outline: '1px dashed rgba(255,255,255,0.16)', outlineOffset: '-1px' });
       el.appendChild(c.el); return c;
     });
-    const TEXT = 'Write 500 words';
-    let saveC = null;
+    const TEXT = 'Read 10 pages';
     out.push({
       t0: C.beingCharacter - 0.2, t1: C.beingAudience + 0.4, el,
       update(t) {
-        if (!saveC) { const b = ed.save.getBoundingClientRect(), s = el.getBoundingClientRect(); saveC = [b.left - s.left + b.width / 2, b.top - s.top + b.height / 2]; }
         // whip in from the left, whip out to the left
         const win = E.outExpo(prog(t, C.beingCharacter - 0.06, 0.5));
         const wout = E.inExpo(prog(t, C.beingAudience - 0.3, 0.34));
@@ -65,15 +65,15 @@ export function sceneStory(C, fx) {
         const fsel = env(t, C.everyDay - 0.05, C.bePurposeful, 0.15, 0.3);
         css(ed.freq, { color: daily ? 'var(--color-text-primary)' : 'var(--color-placeholder)' });
         css(ed.select, { borderColor: `rgba(90,159,212,${(0.1 + 0.9 * fsel).toFixed(3)})`, background: `rgba(90,159,212,${(0.06 * fsel).toFixed(3)})`, transform: `scale(${(1 + 0.03 * Math.sin(Math.PI * prog(t, C.everyDay + 0.1, 0.25))).toFixed(4)})` });
-        // purposeful → Hard habit
-        const hard = t >= C.purposeful;
-        ed.chips.forEach((c, i) => { const on = hard && i === 2; if (c.classList.contains('active') !== on) c.classList.toggle('active', on); });
-        css(ed.chips[2], { transform: `scale(${(1 + 0.07 * Math.sin(Math.PI * prog(t, C.purposeful, 0.28))).toFixed(4)})` });
+        // purposeful → Medium habit · 25 XP
+        const picked = t >= C.purposeful;
+        ed.chips.forEach((c, i) => { const on = picked && i === 1; if (c.classList.contains('active') !== on) c.classList.toggle('active', on); });
+        css(ed.chips[1], { transform: `scale(${(1 + 0.07 * Math.sin(Math.PI * prog(t, C.purposeful, 0.28))).toFixed(4)})` });
         // save
         const press = Math.sin(Math.PI * prog(t, C.save - 0.05, 0.22));
         css(ed.save, { transform: `scale(${(1 - 0.06 * press).toFixed(4)})`, boxShadow: press > 0 ? `0 0 ${(24 * press).toFixed(1)}px rgba(90,159,212,0.6)` : '' });
         const rp = prog(t, C.save - 0.04, 0.45);
-        css(rip, { left: saveC[0] + 'px', top: saveC[1] + 'px', opacity: (rp > 0 && rp < 1 ? 1 - rp : 0).toFixed(3), transform: `scale(${lerp(1, 9, E.outCubic(rp)).toFixed(3)})` });
+        css(rip, { opacity: (rp > 0 && rp < 1 ? 1 - rp : 0).toFixed(3), transform: `scale(${lerp(1, 9, E.outCubic(rp)).toFixed(3)})` });
         // the editor collapses into the new card
         const col = E.inOutCubic(prog(t, C.save + 0.12, 0.38));
         const edIn = E.outCubic(prog(t, C.beingCharacter + 0.05, 0.45));
@@ -115,7 +115,7 @@ export function sceneStory(C, fx) {
     el.appendChild(hc.el);
     // A long record: newest first. The first rows land on the beat; then the
     // list rolls back through weeks of entries — "your own journey".
-    const ACTS = [['Write 500 words', 40], ['Morning run', 25], ['Read 20 pages', 20], ['Journal', 10]];
+    const ACTS = [['Read 10 pages', 25], ['Walk 30 minutes', 20], ['Call family', 15], ['Journal', 10]];
     const days = [];
     for (let d = 0; d < 24; d++) {
       const dt = new Date(2026, 9, 31 - d);
@@ -169,7 +169,12 @@ export function sceneStory(C, fx) {
     calWrap.appendChild(cal.el); el.appendChild(calWrap);
     cal.setMonth(2026, 9);
     const frost = hiCanvas(W, H, 'abs'); el.appendChild(frost);
-    const roses = MISSED.map(d => { const c = h('div', 'calendar-day mk-rose', `<span>${d}</span>`, 'position:absolute;'); el.appendChild(c); return c; });
+    // The missed days, drawn above the frost. They live in a layer that copies
+    // the calendar's transform exactly (but not its blur), and the calendar's
+    // own cells for those days are hidden — so each date exists exactly once.
+    const roseWrap = h('div', 'abs', '', 'left:0;top:0;width:432px;height:768px;transform-origin:216px 290px;');
+    el.appendChild(roseWrap);
+    const roses = MISSED.map(d => { const c = h('div', 'calendar-day mk-rose', `<span>${d}</span>`, 'position:absolute;'); roseWrap.appendChild(c); return c; });
     const brand = brandLockup();
     css(brand.el, { left: '0px', top: '190px' }); el.appendChild(brand.el);
     const shock = h('div', 'abs', '', 'width:100px;height:100px;margin:-50px 0 0 -50px;border-radius:50%;border:2px solid rgba(90,159,212,0.9);box-shadow:0 0 30px rgba(90,159,212,0.7), inset 0 0 20px rgba(90,159,212,0.4);');
@@ -201,9 +206,8 @@ export function sceneStory(C, fx) {
       update(t) {
         if (!geo) {
           geo = {};
-          const s = el.getBoundingClientRect();
-          for (let d = 1; d <= 31; d++) { const r = cal.map[d].getBoundingClientRect(); geo[d] = { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height }; }
-          roses.forEach((c, i) => { const g = geo[MISSED[i]]; css(c, { left: g.x + 'px', top: g.y + 'px', width: g.w + 'px', height: g.h + 'px', display: 'flex', alignItems: 'center', justifyContent: 'center' }); });
+          for (let d = 1; d <= 31; d++) { const c = cal.map[d]; const [x, y] = layoutPos(c, calWrap); geo[d] = { x, y, w: c.offsetWidth, h: c.offsetHeight }; }
+          roses.forEach((c, i) => { const g = geo[MISSED[i]]; css(c, { left: g.x + 'px', top: g.y + 'px', width: g.w + 'px', height: g.h + 'px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0' }); });
         }
         const inA = E.outCubic(prog(t, C.memory - 0.1, 0.55));
         const fr = E.inOutSine(prog(t, C.memory + 0.2, 2.3));                        // frost amount
@@ -212,26 +216,30 @@ export function sceneStory(C, fx) {
         const push = E.inOutSine(prog(t, C.memory, 7.5));
         // days: blue except the missed ones; "forgetting" fades the blue away
         for (let d = 1; d <= 31; d++) {
-          if (MISSED.includes(d)) { cal.paint(d, { a: 0, dim: 1 }); continue; }
+          if (MISSED.includes(d)) { cal.paint(d, { a: 0, dim: 0 }); continue; }
           const oi = order.indexOf(d);
           const fade = E.inCubic(prog(t, C.forgetting - 0.1 + oi * 0.055, 0.35));
           cal.paint(d, { a: 1 - fade, dim: 1 - 0.85 * fade });
         }
         const forget = prog(t, C.forgetting - 0.1, 2.2);
         const calHide = E.inCubic(prog(t, C.thisIsWhere - 0.1, 0.5));
-        css(calWrap, { opacity: (inA * lerp(1, 0.35, forget) * (1 - calHide)).toFixed(3), transform: `scale(${(lerp(0.94, 1, inA) * lerp(1, 1.1, push)).toFixed(4)})`, filter: `blur(${(fr * 2.6).toFixed(2)}px) saturate(${(1 - 0.5 * fr).toFixed(3)}) brightness(${(1 - 0.25 * fr).toFixed(3)})` });
+        const calS = lerp(0.94, 1, inA) * lerp(1, 1.1, push);
+        css(calWrap, { opacity: (inA * lerp(1, 0.35, forget) * (1 - calHide)).toFixed(3), transform: `scale(${calS.toFixed(4)})`, filter: `blur(${(fr * 2.6).toFixed(2)}px) saturate(${(1 - 0.5 * fr).toFixed(3)}) brightness(${(1 - 0.25 * fr).toFixed(3)})` });
+        css(roseWrap, { transform: `scale(${calS.toFixed(4)})` });
         // the quits stay sharp, and come forward
         const remember = E.outBack(prog(t, C.onlyRemember + 0.2, 0.5));
         const quitHit = pulse(t, C.quit, 5);
         const converge = E.inOutCubic(prog(t, C.thisIsWhere, 0.75));
         roses.forEach((c, i) => {
           const g = geo[MISSED[i]];
-          const sc = lerp(1, 1.14, remember) * (1 + 0.15 * quitHit) * lerp(1, 0.2, converge) * lerp(1, 1.1, push);
+          const sc = lerp(1, 1.14, remember) * (1 + 0.15 * quitHit) * lerp(1, 0.2, converge);
           const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
-          const dx = lerp(0, 216 - cx, converge) + (cx - 216) * (lerp(1, 1.1, push) - 1), dy = lerp(0, 270 - cy, converge) + (cy - 290) * (lerp(1, 1.1, push) - 1);
+          // converge toward screen point (216, 270), expressed in the scaled layer
+          const tx = 216 + (216 - 216) / calS, ty = 290 + (270 - 290) / calS;
+          const dx = lerp(0, tx - cx, converge), dy = lerp(0, ty - cy, converge);
           const rose = clamp(remember, 0, 1);
           const op = inA * (1 - prog(t, C.mindkraft - 0.1, 0.15));
-          css(c, { opacity: op.toFixed(3), transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${sc.toFixed(3)})`, boxShadow: `0 0 0 ${(1.5 * rose).toFixed(2)}px rgba(194,106,122,${rose.toFixed(3)}), 0 0 ${(14 + 18 * quitHit).toFixed(1)}px rgba(194,106,122,${(0.55 * rose).toFixed(3)})`, background: rose > 0 ? `rgba(194,106,122,${(0.14 * rose).toFixed(3)})` : '', color: rose > 0.3 ? '#f0b3bf' : '', filter: remember > 0 ? '' : `blur(${(fr * 2.6).toFixed(2)}px)` });
+          css(c, { opacity: op.toFixed(3), transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${sc.toFixed(3)})`, boxShadow: `0 0 0 ${(1.5 * rose).toFixed(2)}px rgba(194,106,122,${rose.toFixed(3)}), 0 0 ${(14 + 18 * quitHit).toFixed(1)}px rgba(194,106,122,${(0.55 * rose).toFixed(3)})`, background: rose > 0 ? `rgba(194,106,122,${(0.14 * rose).toFixed(3)})` : '', color: rose > 0.3 ? '#f0b3bf' : '', filter: rose < 1 ? `blur(${(fr * 2.6 * (1 - rose)).toFixed(2)}px) saturate(${(1 - 0.5 * fr * (1 - rose)).toFixed(3)})` : '' });
         });
         // frost canvas: crystals + edge haze, and the puffs of forgotten days
         clearCanvas(frost);
@@ -305,12 +313,11 @@ export function sceneStory(C, fx) {
     el.appendChild(hdr.el);
     const grp = groupHeader('Winter Arc', 'snowflake', 3);
     const grpWrap = h('div', 'abs', '', 'left:40px;top:150px;width:352px;'); grpWrap.appendChild(grp); el.appendChild(grpWrap);
-    const defs = [['Write 500 words', 40, 21, 'amber'], ['Morning run', 25, 16, 'sage'], ['Read 20 pages', 20, 33, 'purple']];
-    const cards = defs.map(([n, xp, st, dim], i) => { const c = activityCard({ name: n, xp, streak: st, dim }); css(c.el, { left: '40px', top: (196 + i * 70) + 'px' }); el.appendChild(c.el); return c; });
-    const rips = cards.map(() => { const r = ripple(); el.appendChild(r); return r; });
-    const fxc = hiCanvas(W, H, 'abs'); el.appendChild(fxc);
+    // the arc, broken down into simple actions done every day
+    const defs = [['Read 10 pages', 25, 20, 'purple'], ['Walk 30 minutes', 20, 16, 'sage'], ['Call family', 15, 9, 'rose']];
+    const cards = defs.map(([n, xp, st, dim], i) => { const c = activityCard({ name: n, xp, streak: st, dim }); css(c.el, { left: '40px', top: (196 + i * 70) + 'px', transformOrigin: '50% 0' }); el.appendChild(c.el); return c; });
     const flts = defs.map(d => { const f = floatXP(`+${d[1]} XP`); el.appendChild(f); return f; });
-    const toast = msgToast('21-day streak on Write 500 words — +20 Grit', 'fire', 'var(--chip-streak-fg)');
+    const toast = msgToast('21-day streak on Read 10 pages — +20 Grit', 'fire', 'var(--chip-streak-fg)');
     css(toast.el, { left: '36px', top: '98px' }); el.appendChild(toast.el);
     // New Year calendar
     const cal = calendarCard();
@@ -325,16 +332,16 @@ export function sceneStory(C, fx) {
       t0: C.here - 0.45, t1: C.stepBack + 0.75, el,
       update(t) {
         if (!geo) {
-          const s = el.getBoundingClientRect();
-          geo = cards.map(c => { const r = c.ringWrap.getBoundingClientRect(); return [r.left - s.left + r.width / 2, r.top - s.top + r.height / 2]; });
-          const b = hdr.bar.parentElement.getBoundingClientRect(); geo.bar = [b.left - s.left, b.top - s.top + b.height / 2, b.width];
+          geo = cards.map(c => layoutCenter(c.ringWrap, el));
+          const bc = hdr.bar.parentElement, [bx, by] = layoutPos(bc, el); geo.bar = [bx, by + bc.offsetHeight / 2, bc.offsetWidth];
+          geo.jan1 = null;
         }
         // header drops in
         const hIn = E.outCubic(prog(t, C.here - 0.4, 0.55));
         const stepOut = E.inCubic(prog(t, C.stepBack - 0.08, 0.34));
         // XP model: 120/230 at Level 14, each log flies to the bar
         const arrive = logs.map(b => E.inOutCubic(prog(t, b + 0.12, 0.42)));
-        const xpNow = 120 + 40 * arrive[0] + 25 * arrive[1] + 20 * arrive[2];
+        const xpNow = 120 + defs[0][1] * arrive[0] + defs[1][1] * arrive[1] + defs[2][1] * arrive[2];
         // New Year roll: levels 14 → 31
         const roll = E.inOutSine(prog(t, C.byTheTime + 0.05, C.year - C.byTheTime));
         const lvF = 14 + (31 - 14) * roll;
@@ -350,21 +357,29 @@ export function sceneStory(C, fx) {
         hdr.set({ level, xp: xpShown, toNext, pct, trace: prog(t, C.year + 0.05, 1.6), pop: lvPop });
         css(hdr.el, { opacity: (hIn * (1 - stepOut)).toFixed(3), transform: `translateY(${lerp(-80, 0, hIn).toFixed(1)}px)` });
 
-        // group + cards cascade
-        const gIn = E.outCubic(prog(t, C.define - 0.3, 0.4));
+        // "define your arc": the Winter Arc group arrives and glows on "arc"
+        const gIn = E.outCubic(prog(t, C.define - 0.3, 0.45));
         const away = E.inCubic(prog(t, C.byTheTime - 0.25, 0.4));
-        css(grpWrap, { opacity: (gIn * (1 - away)).toFixed(3), transform: `translateY(${(lerp(16, 0, gIn) + 40 * away).toFixed(1)}px)` });
+        const gGlow = env(t, C.define + 0.45, C.breakDown + 0.4, 0.25, 0.4);
+        css(grpWrap, { opacity: (gIn * (1 - away)).toFixed(3), transform: `translateY(${(lerp(16, 0, gIn) + 40 * away).toFixed(1)}px) scale(${(1 + 0.05 * gGlow).toFixed(4)})`, transformOrigin: '20% 50%', textShadow: gGlow > 0.01 ? `0 0 ${(18 * gGlow).toFixed(1)}px rgba(90,159,212,${(0.8 * gGlow).toFixed(3)})` : '' });
         cards.forEach((c, i) => {
-          const a = prog(t, C.define + i * 0.13, 0.5);
+          // "break it down into simple actions": each card unfolds out of the group
+          const a = prog(t, C.breakDown + i * 0.32, 0.55);
           const b = logs[i];
           const done = E.outCubic(prog(t, b, 0.22));
           c.setDone(done);
           c.setStreak(defs[i][2] + (t >= b + 0.08 ? 1 : 0));
+          // "you do every day": the streak chips light up in turn
+          const ev = Math.sin(clamp((t - (C.everyDay2 - 0.2 + i * 0.16)) / 0.35, 0, 1) * Math.PI);
+          css(c.streak, { transform: `scale(${(1 + 0.3 * ev).toFixed(3)})`, boxShadow: ev > 0.01 ? `0 0 ${(12 * ev).toFixed(1)}px rgba(251,146,60,${(0.7 * ev).toFixed(3)})` : '' });
           const pop = Math.sin(clamp((t - b) / 0.32, 0, 1) * Math.PI) * 0.04;
           const ax = E.inCubic(prog(t, C.byTheTime - 0.25 + i * 0.05, 0.4));
-          css(c.el, { opacity: (E.outCubic(a) * (1 - ax)).toFixed(3), transform: `translateY(${(lerp(34, 0, E.outBack(a)) + 50 * ax).toFixed(1)}px) scale(${(1 + pop).toFixed(4)})` });
-          const rp = prog(t, b - 0.06, 0.45);
-          css(rips[i], { left: geo[i][0] + 'px', top: geo[i][1] + 'px', opacity: (rp > 0 && rp < 1 ? 1 - rp : 0).toFixed(3), transform: `scale(${lerp(1, 7, E.outCubic(rp)).toFixed(3)})` });
+          const unfold = E.outBack(a);
+          css(c.el, { opacity: (E.outCubic(a) * (1 - ax)).toFixed(3), transform: `translateY(${(lerp(-46 - i * 70, 0, unfold) + 50 * ax).toFixed(1)}px) scale(${(lerp(0.86, 1, E.outCubic(a)) + pop).toFixed(4)})` });
+          // "show up each day": tap ripple + sparkle on the ring, light sweep on the card
+          c.setRipple(prog(t, b - 0.06, 0.45));
+          c.setBurst(prog(t, b + 0.02, 0.6), 80 + i);
+          c.setSheen(prog(t, b + 0.05, 0.55));
           // +XP flies from the ring up into the header bar
           const fp = prog(t, b + 0.04, 0.55);
           const fe = E.inOutCubic(fp);
@@ -372,8 +387,6 @@ export function sceneStory(C, fx) {
           const x = lerp(geo[i][0] - 30, tx, fe), y = lerp(geo[i][1] - 22, ty, fe) - 40 * Math.sin(Math.PI * fe);
           css(flts[i], { left: x.toFixed(1) + 'px', top: y.toFixed(1) + 'px', opacity: (fp > 0 && fp < 1 ? Math.min(1, fp * 8, (1 - fp) * 4) : 0).toFixed(3), transform: `scale(${lerp(1.1, 0.7, fe).toFixed(3)})` });
         });
-        clearCanvas(fxc);
-        logs.forEach((b, i) => { burst(fxc.ctx, geo[i][0], geo[i][1], prog(t, b + 0.02, 0.6), 80 + i); cards[i].setSheen(prog(t, b + 0.05, 0.55)); });
         // the bar glows as XP lands
         const land = Math.max(...logs.map(b => pulse(t, b + 0.54, 6)));
         css(hdr.bar, { boxShadow: land > 0.01 ? `0 0 ${(14 * land).toFixed(1)}px rgba(90,159,212,${(0.9 * land).toFixed(3)})` : '' });
@@ -404,8 +417,10 @@ export function sceneStory(C, fx) {
           // gold sparkle on Jan 1 — the milestone
           const sp = prog(t, C.year, 1.1);
           if (sp > 0 && sp < 1 && cal.map[1]) {
-            const r = cal.map[1].getBoundingClientRect(), s = el.getBoundingClientRect();
-            const cx = r.left - s.left + r.width / 2, cy = r.top - s.top + r.height / 2;
+            // Jan 1's centre through the calendar's own transform (origin 216,300)
+            const [lx, ly] = layoutCenter(cal.map[1], el);
+            const S = lerp(0.92, 0.94, cIn) * (1 + 0.03 * flip) * lerp(1, 0.25, stepOut);
+            const cx = 216 + (lx - 216) * S, cy = 300 + (ly - 300) * S + lerp(50, 0, cIn);
             const ctx = sparks.ctx;
             for (let j = 0; j < 22; j++) {
               const a = (j / 22) * 6.283 + rnd(j) * 0.3, d = lerp(6, rndr(j + 3, 50, 110), E.outCubic(sp));
